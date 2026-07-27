@@ -8,8 +8,19 @@ mod ssh;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    for host in env::args().skip(1) {
-        let cfg = ShellCfg::new(&host).await?;
+    let tasks: Vec<_> = env::args()
+        .skip(1)
+        .map(|host| {
+            tokio::spawn(async move {
+                let cfg = ShellCfg::new(&host).await;
+                (host, cfg)
+            })
+        })
+        .collect();
+
+    for task in tasks {
+        let (host, cfg) = task.await?;
+        let cfg = cfg?;
         println!(">>> {host}");
         print_field(&cfg, "hostname");
         print_field(&cfg, "user");
