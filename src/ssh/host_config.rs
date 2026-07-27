@@ -32,14 +32,9 @@ impl HostConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if `ssh` cannot be spawned (e.g. not on `PATH`) or if it
+    /// Returns an error if `ssh` cannot be spawned (e.g. not on `PATH`), if it
     /// exits with a non-zero status, in which case its stderr is included in the
-    /// message.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a line of `ssh -G` output contains no space separating the
-    /// option name from its value.
+    /// message, or if the output format isn't the expected one.
     pub async fn parse(hostname: &str) -> Result<HostConfig> {
         let output = Command::new("ssh").args(&["-G", hostname]).output().await?;
 
@@ -51,7 +46,7 @@ impl HostConfig {
             ));
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let var_map = parse_stdout(&stdout);
+        let var_map = parse_stdout(&stdout)?;
         Ok(HostConfig { var_map })
     }
 
@@ -71,14 +66,16 @@ impl HostConfig {
 /// values containing spaces stay intact. Repeated names accumulate in output
 /// order.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if a line contains no space.
-fn parse_stdout(stdout: &str) -> HashMap<String, Vec<String>> {
+/// Returns an error if a line fails to be parsed
+fn parse_stdout(stdout: &str) -> Result<HashMap<String, Vec<String>>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
-    for line in stdout.lines() {
-        let (key, val) = line.split_once(" ").unwrap();
+    for (num, line) in stdout.lines().enumerate() {
+        let (key, val) = line
+            .split_once(" ")
+            .ok_or_else(|| anyhow!("Unexpected format: could not parse line \"{}\"", num + 1))?;
         map.entry(key.to_owned()).or_default().push(val.to_owned());
     }
-    map
+    Ok(map)
 }
