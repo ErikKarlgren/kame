@@ -2,12 +2,12 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use tokio::process::Command;
 
-pub struct ShellCfg {
+pub struct HostConfig {
     var_map: HashMap<String, Vec<String>>,
 }
 
-impl ShellCfg {
-    pub async fn new(hostname: &str) -> Result<ShellCfg> {
+impl HostConfig {
+    pub async fn parse(hostname: &str) -> Result<HostConfig> {
         let output = Command::new("ssh").args(&["-G", hostname]).output().await?;
 
         if !output.status.success() {
@@ -19,14 +19,12 @@ impl ShellCfg {
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
         let var_map = parse_stdout(&stdout);
-        Ok(ShellCfg { var_map })
+        Ok(HostConfig { var_map })
     }
-
     pub fn get(&self, key: &str) -> Option<&[String]> {
         self.var_map.get(key).map(|val| val.as_slice())
     }
 }
-
 fn parse_stdout(stdout: &str) -> HashMap<String, Vec<String>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     for line in stdout.lines() {

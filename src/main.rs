@@ -2,7 +2,7 @@ use std::env;
 
 use anyhow::Result;
 
-use crate::ssh::shell_cfg::ShellCfg;
+use crate::ssh::host_config::HostConfig;
 
 mod ssh;
 
@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
         .skip(1)
         .map(|host| {
             tokio::spawn(async move {
-                let cfg = ShellCfg::new(&host).await;
+                let cfg = HostConfig::parse(&host).await;
                 (host, cfg)
             })
         })
@@ -31,10 +31,10 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn print_field(shell_cfg: &ShellCfg, field: &str) {
+fn print_field(cfg: &HostConfig, field: &str) {
     println!(
         "{}: {:?}",
         field,
-        shell_cfg.get(field).unwrap_or(&["???".to_owned()])
+        cfg.get(field).unwrap_or(&["???".to_owned()])
     );
 }
