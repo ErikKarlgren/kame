@@ -1,3 +1,6 @@
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+
 use anyhow::anyhow;
 use std::env;
 

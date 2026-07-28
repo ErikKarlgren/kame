@@ -5,7 +5,7 @@
 //! `ssh -G <host>` and read back the fully resolved key/value pairs.
 
 use anyhow::{Result, anyhow};
-use std::collections::HashMap;
+use std::{collections::HashMap, vec::Vec};
 use tokio::process::Command;
 
 /// The effective SSH configuration for a single host, as reported by
@@ -36,7 +36,7 @@ impl HostConfig {
     /// exits with a non-zero status, in which case its stderr is included in the
     /// message, or if the output format isn't the expected one.
     pub async fn parse(hostname: &str) -> Result<HostConfig> {
-        let output = Command::new("ssh").args(&["-G", hostname]).output().await?;
+        let output = Command::new("ssh").args(["-G", hostname]).output().await?;
 
         if !output.status.success() {
             return Err(anyhow!(
@@ -56,7 +56,7 @@ impl HostConfig {
     /// `key` must be lowercase, matching the way `ssh -G` prints option names.
     /// Options that appear only once still yield a single-element slice.
     pub fn get(&self, key: &str) -> Option<&[String]> {
-        self.var_map.get(key).map(|val| val.as_slice())
+        self.var_map.get(key).map(Vec::as_slice)
     }
 }
 
@@ -73,7 +73,7 @@ fn parse_stdout(stdout: &str) -> Result<HashMap<String, Vec<String>>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     for (num, line) in stdout.lines().enumerate() {
         let (key, val) = line
-            .split_once(" ")
+            .split_once(' ')
             .ok_or_else(|| anyhow!("Unexpected format: could not parse line \"{}\"", num + 1))?;
         map.entry(key.to_owned()).or_default().push(val.to_owned());
     }

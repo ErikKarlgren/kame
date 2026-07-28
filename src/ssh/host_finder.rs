@@ -18,7 +18,7 @@ pub async fn parse_hosts(path: PathBuf) -> Result<HashSet<String>> {
         if trimmed.starts_with("Host") {
             for host in trimmed.split_whitespace().skip(1) {
                 // We only care about real aliases, not patterns
-                if host.contains("!") {
+                if host.contains('!') {
                     break;
                 }
                 if !host.contains('*') && !host.contains('[') && !host.contains(']') {
