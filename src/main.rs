@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::env;
 
 use anyhow::Result;
@@ -20,7 +21,12 @@ async fn main() -> Result<()> {
 
     if tasks.is_empty() {
         println!("Parsing hosts");
-        let hosts = parse_hosts("/home/erik/.ssh/config".into()).await?;
+        let hosts = parse_hosts(
+            dirs::home_dir()
+                .ok_or(anyhow!("no home dir found"))?
+                .join(".ssh/config"),
+        )
+        .await?;
         for h in hosts {
             println!("{h}");
         }
