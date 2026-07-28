@@ -2,7 +2,7 @@ use std::env;
 
 use anyhow::Result;
 
-use crate::ssh::host_config::HostConfig;
+use crate::ssh::{host_config::HostConfig, host_finder::parse_hosts};
 
 mod ssh;
 
@@ -17,6 +17,15 @@ async fn main() -> Result<()> {
             })
         })
         .collect();
+
+    if tasks.is_empty() {
+        println!("Parsing hosts");
+        let hosts = parse_hosts("/home/erik/.ssh/config".into()).await?;
+        for h in hosts {
+            println!("{h}");
+        }
+        return Ok(());
+    }
 
     for task in tasks {
         let (host, cfg) = task.await?;
