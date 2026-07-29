@@ -1,5 +1,10 @@
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
+#![warn(clippy::cargo)]
+#![deny(clippy::style)]
+#![deny(clippy::complexity)]
+#![deny(clippy::perf)]
+#![deny(clippy::nursery)]
 
 use anyhow::anyhow;
 use std::env;
@@ -26,7 +31,7 @@ async fn main() -> Result<()> {
         println!("Parsing hosts");
         let hosts = parse_hosts(
             dirs::home_dir()
-                .ok_or(anyhow!("no home dir found"))?
+                .ok_or_else(|| anyhow!("no home dir found"))?
                 .join(".ssh/config"),
         )
         .await?;
@@ -50,9 +55,6 @@ async fn main() -> Result<()> {
 }
 
 fn print_field(cfg: &HostConfig, field: &str) {
-    println!(
-        "{}: {:?}",
-        field,
-        cfg.get(field).unwrap_or(&["???".to_owned()])
-    );
+    let default = &["???".to_owned()];
+    println!("{}: {:?}", field, cfg.get(field).unwrap_or(default));
 }

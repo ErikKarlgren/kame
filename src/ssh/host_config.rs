@@ -35,7 +35,7 @@ impl HostConfig {
     /// Returns an error if `ssh` cannot be spawned (e.g. not on `PATH`), if it
     /// exits with a non-zero status, in which case its stderr is included in the
     /// message, or if the output format isn't the expected one.
-    pub async fn parse(hostname: &str) -> Result<HostConfig> {
+    pub async fn parse(hostname: &str) -> Result<Self> {
         let output = Command::new("ssh").args(["-G", hostname]).output().await?;
 
         if !output.status.success() {
@@ -47,7 +47,7 @@ impl HostConfig {
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
         let var_map = parse_stdout(&stdout)?;
-        Ok(HostConfig { var_map })
+        Ok(Self { var_map })
     }
 
     /// Returns the values `ssh` reported for the option `key`, or `None` if the
