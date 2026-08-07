@@ -11,12 +11,17 @@ use std::env;
 
 use anyhow::Result;
 
-use crate::ssh::{host_config::HostConfig, host_finder::parse_hosts};
+use crate::{
+    cli::parse_args,
+    ssh::{host_config::HostConfig, host_finder::parse_hosts},
+};
 
+mod cli;
 mod ssh;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _cli = parse_args();
     let tasks: Vec<_> = env::args()
         .skip(1)
         .map(|host| {
