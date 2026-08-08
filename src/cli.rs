@@ -902,25 +902,30 @@ mod tests {
     /// the suite happens to run in.
     const TEST_WIDTH: usize = 100;
 
+    /// The help `kame pick --help` prints, rendered at `width` columns.
+    ///
+    /// Goes through a real parse rather than reaching for the subcommand with
+    /// `find_subcommand_mut`: [`Command::term_width`] lives in the parent and
+    /// only reaches a subcommand when the parent is built, so rendering the
+    /// subcommand on its own would silently fall back to clap detecting the
+    /// terminal the test suite happens to run in.
+    fn pick_help(width: usize) -> clap::builder::StyledStr {
+        command_with_width(width)
+            .try_get_matches_from(["kame", CMD_PICK, "--help"])
+            .expect_err("--help is reported as an error carrying the help text")
+            .render()
+    }
+
     /// `pick --help` at `width` columns, with the ANSI escapes kept.
     fn pick_help_ansi(width: usize) -> String {
-        command_with_width(width)
-            .find_subcommand_mut(CMD_PICK)
-            .expect("the pick subcommand exists")
-            .render_long_help()
-            .ansi()
-            .to_string()
+        pick_help(width).ansi().to_string()
     }
 
     /// `pick --help` at `width` columns, as it comes out when color is off.
     /// `Display for StyledStr` strips escapes exactly like `anstream` does when
     /// printing.
     fn pick_help_plain(width: usize) -> String {
-        command_with_width(width)
-            .find_subcommand_mut(CMD_PICK)
-            .expect("the pick subcommand exists")
-            .render_long_help()
-            .to_string()
+        pick_help(width).to_string()
     }
 
     #[test]
