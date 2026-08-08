@@ -22,8 +22,8 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 use clap::builder::styling::{Ansi256Color, Style};
-use clap::builder::{EnumValueParser, PossibleValue, Styles, ValueParser};
-use clap::{Arg, ArgAction, ArgMatches, Command, Error, ValueEnum};
+use clap::builder::{EnumValueParser, Styles, ValueParser};
+use clap::{Arg, ArgAction, ArgMatches, ColorChoice, Command, Error};
 
 /// Subcommand name for the fuzzy picker.
 const CMD_PICK: &str = "pick";
@@ -63,36 +63,14 @@ const FIELD_ALIASES: [(&str, &str); 4] = [
 /// The field `-L/--literal` falls back to when no other field is requested.
 const LITERAL_DEFAULT_FIELD: &str = "hostname";
 
-/// When to colorize output, from `--color <WHEN>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ColorChoice {
-    /// Colorize only when stdout is a terminal.
-    #[default]
-    Auto,
-    /// Always colorize, even when piped.
-    Always,
-    /// Never colorize.
-    Never,
-}
-
-impl ValueEnum for ColorChoice {
-    fn value_variants<'a>() -> &'a [Self] {
-        &[Self::Auto, Self::Always, Self::Never]
-    }
-
-    fn to_possible_value(&self) -> Option<PossibleValue> {
-        Some(match self {
-            Self::Auto => PossibleValue::new("auto"),
-            Self::Always => PossibleValue::new("always"),
-            Self::Never => PossibleValue::new("never"),
-        })
-    }
-}
-
 /// A fully parsed and normalized `kame` invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cli {
     /// Value of the global `--color <WHEN>` flag.
+    ///
+    /// This is clap's own enum: it already has exactly the `auto`/`always`/
+    /// `never` variants we want, and [`command`] needs it to color its help
+    /// anyway, so there is nothing to gain from a parallel type.
     pub color: ColorChoice,
     /// The subcommand to run, with its own arguments.
     pub command: Subcommand,
@@ -172,23 +150,89 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
+    let args: Vec<OsString> = args.into_iter().map(Into::into).collect();
+
     let mut cmd = command();
-    let matches = cmd.try_get_matches_from_mut(args)?;
+    if let Some(color) = detect_color(&args) {
+        cmd = cmd.color(color);
+    }
+
+    let matches = cmd.try_get_matches_from_mut(&args)?;
     from_matches(&mut cmd, &matches)
 }
 
+/// Shell green, for the section headings.
+const SHELL_GREEN: Ansi256Color = Ansi256Color(64);
+/// Stripe yellow, for flags and other text typed literally.
+const STRIPE_YELLOW: Ansi256Color = Ansi256Color(178);
+/// The paler yellow of the plastron, for value placeholders.
+const PLASTRON_YELLOW: Ansi256Color = Ansi256Color(184);
+
 /// Create styles following the color-scheme of a slider turtle
+///
+/// Only the help-text styles are overridden; [`Styles::styled`] keeps clap's
+/// defaults for errors and invalid values, which stay red because that carries
+/// meaning a turtle palette shouldn't override.
 fn turtle_styles() -> Styles {
+    let shell = Style::new().fg_color(Some(SHELL_GREEN.into())).bold();
     Styles::styled()
-        .header(Style::new().fg_color(Some(Ansi256Color(64).into())).bold())
-        .usage(Style::new().fg_color(Some(Ansi256Color(64).into())).bold())
-        .literal(Style::new().fg_color(Some(Ansi256Color(178).into())))
-        .placeholder(Style::new().fg_color(Some(Ansi256Color(184).into())))
+        .header(shell)
+        .usage(shell)
+        .literal(Style::new().fg_color(Some(STRIPE_YELLOW.into())))
+        .placeholder(Style::new().fg_color(Some(PLASTRON_YELLOW.into())))
 }
 
-/// Builds the clap [`Command`] describing the whole interface.
+/// Finds an explicit `--color <WHEN>` in the raw arguments.
+///
+/// clap needs its color setting while the [`Command`] is being built, but
+/// `--color` is an ordinary argument that is only known once parsing has run —
+/// too late for `--help`, `--version` and usage errors, which are rendered
+/// during the parse. So the flag is spotted up front here.
+///
+/// Returns `None` when the flag is absent or carries a value we don't
+/// recognize. The command then stays on [`ColorChoice::Auto`], which leaves
+/// `NO_COLOR` and tty detection to `anstream` and lets clap report the bad
+/// value itself.
+fn detect_color(args: &[OsString]) -> Option<ColorChoice> {
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        // Non-UTF-8 can't be any spelling of `--color`, but it also mustn't
+        // stop the scan: it may be a path argument before the flag.
+        let Some(arg) = arg.to_str() else { continue };
+
+        // Everything after these belongs to the preview command or to a
+        // positional, so a `--color` beyond this point isn't ours.
+        if arg == "--" || arg.strip_prefix("--") == Some(ARG_PREVIEW_CMD) {
+            return None;
+        }
+
+        let value = if let Some(value) = arg.strip_prefix("--color=") {
+            value
+        } else if arg.strip_prefix("--") == Some(ARG_COLOR) {
+            args.next()?.to_str()?
+        } else {
+            continue;
+        };
+        return value.parse().ok();
+    }
+    None
+}
+
+/// Builds the clap [`Command`] describing the whole interface, laid out for the
+/// current terminal.
 #[must_use]
 pub fn command() -> Command {
+    command_with_width(detect_width())
+}
+
+/// Builds the clap [`Command`], wrapping all help text at `width` columns.
+///
+/// The width is handed to clap *and* used to lay out the `Examples:` block, so
+/// the two always agree — see [`pick_examples`] for why the block has to be
+/// pre-wrapped. Tests use this directly to stay independent of the terminal
+/// they happen to run in.
+#[must_use]
+pub fn command_with_width(width: usize) -> Command {
     Command::new("kame")
         .version(env!("CARGO_PKG_VERSION"))
         .styles(turtle_styles())
@@ -200,6 +244,9 @@ pub fn command() -> Command {
         // The reference help lists `pick` and `probe` only.
         .disable_help_subcommand(true)
         .arg_required_else_help(true)
+        // Setting this takes precedence over clap's own terminal detection and
+        // over `max_term_width`, which is why [`resolve_width`] applies the cap.
+        .term_width(width)
         .arg(
             Arg::new(ARG_VERSION)
                 .short('V')
@@ -214,14 +261,15 @@ pub fn command() -> Command {
                 .global(true)
                 .default_value("auto")
                 .hide_default_value(true)
+                .display_order(999)
                 .value_parser(EnumValueParser::<ColorChoice>::new())
                 .help("Coloring"),
         )
-        .subcommand(pick_command())
+        .subcommand(pick_command(width))
         .subcommand(probe_command())
 }
 
-fn pick_command() -> Command {
+fn pick_command(width: usize) -> Command {
     Command::new(CMD_PICK)
         .visible_alias("p")
         .about("Fuzzy search and pick host from your ssh config. Output can be controlled with flags")
@@ -286,7 +334,7 @@ fn pick_command() -> Command {
                      no need for quotes). `{}` is a placeholder for the SSH alias",
                 ),
         )
-        .after_help(pick_examples())
+        .after_help(pick_examples(width))
 }
 
 /// The `--field` flag and its four single-letter shorthands.
@@ -328,9 +376,10 @@ fn pick_field_args() -> [Arg; 5] {
 /// Example invocations listed at the bottom of `kame pick --help`, as
 /// (command, description) pairs.
 ///
-/// A description may contain newlines; continuation lines are re-indented to
-/// the description column by [`pick_examples`], so the pairs stay readable here
-/// no matter how the columns end up laid out.
+/// Write each description as one line however long it needs to be:
+/// [`pick_examples`] wraps it to the space left by the command column and hangs
+/// the remainder under it. Avoid `{n}` — clap turns that into a newline when it
+/// renders `after_help`.
 const PICK_EXAMPLES: [(&str, &str); 8] = [
     ("ssh $(kame pick)", "Pick a host and connect to it with SSH"),
     (
@@ -363,46 +412,130 @@ const PICK_EXAMPLES: [(&str, &str); 8] = [
     ),
 ];
 
-/// Indentation of an example row.
-const EXAMPLE_INDENT: &str = "  ";
-/// Gap between the command column and the description column.
-const EXAMPLE_GAP: &str = "  ";
+/// Widest the help is ever wrapped: long lines are hard to read on a wide
+/// terminal.
+const MAX_TERM_WIDTH: usize = 100;
+/// Narrowest we are willing to lay out for. Also keeps us clear of `0`, which
+/// [`Command::term_width`] reads as "never wrap".
+const MIN_TERM_WIDTH: usize = 20;
+/// Width the help falls back to when there is no terminal to measure — the same
+/// default clap uses.
+const DEFAULT_TERM_WIDTH: usize = 100;
 
-/// Renders the `Examples:` block, colored like the rest of the help.
+/// Indentation of an example row.
+const EXAMPLE_INDENT: usize = 2;
+/// Gap between the command column and the description column.
+const EXAMPLE_GAP: usize = 2;
+/// Below this much room for prose, the two-column layout is abandoned for a
+/// stacked one.
+const MIN_DESCRIPTION_WIDTH: usize = 20;
+
+/// The width to lay the help out at, measured from the terminal.
+fn detect_width() -> usize {
+    // Tries stdout, then stderr, then stdin, so help going to a pipe while the
+    // user watches stderr still gets a sensible width. `COLUMNS` mirrors the
+    // fallback clap applies when it does its own detection.
+    let detected = terminal_size::terminal_size()
+        .map(|(width, _)| usize::from(width.0))
+        .or_else(|| std::env::var_os("COLUMNS")?.to_str()?.parse::<usize>().ok());
+    resolve_width(detected)
+}
+
+/// Clamps a measured terminal width into the range the help is designed for.
+fn resolve_width(detected: Option<usize>) -> usize {
+    detected
+        .unwrap_or(DEFAULT_TERM_WIDTH)
+        .clamp(MIN_TERM_WIDTH, MAX_TERM_WIDTH)
+}
+
+/// Width of the command column: the longest command in [`PICK_EXAMPLES`].
+fn example_command_width() -> usize {
+    PICK_EXAMPLES
+        .iter()
+        .map(|(command, _)| command.chars().count())
+        .max()
+        .unwrap_or_default()
+}
+
+/// Greedily wraps `text` onto lines of at most `width` columns.
+///
+/// A word longer than `width` gets a line to itself and overflows, which beats
+/// splitting a command in half.
+fn wrap_words(text: &str, width: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for word in text.split_whitespace() {
+        match lines.last_mut() {
+            Some(line) if line.chars().count() + 1 + word.chars().count() <= width => {
+                line.push(' ');
+                line.push_str(word);
+            }
+            _ => lines.push(word.to_owned()),
+        }
+    }
+    lines
+}
+
+/// Renders the `Examples:` block at `width` columns, colored like the rest of
+/// the help.
 ///
 /// clap does not style `after_help` for us — it treats it as opaque text and
 /// appends it verbatim — so the escapes are written by hand here, reusing the
 /// very [`Styles`] the rest of the help is built from so the two can't drift
 /// apart. When color is off, `anstream` strips these escapes on the way out
-/// along with clap's own, leaving the plain columns below.
-fn pick_examples() -> String {
+/// along with clap's own, leaving plain aligned columns.
+///
+/// The block is pre-wrapped rather than left to clap because clap's wrapper
+/// takes its hanging indent from the leading whitespace of the line, which
+/// would drop wrapped descriptions to the left margin instead of the
+/// description column. Laying out at exactly the width clap was given keeps
+/// every line within it, so clap's pass leaves the block alone — the one
+/// exception being a terminal too narrow for the longest command, which cannot
+/// be broken up and is left for clap to wrap.
+fn pick_examples(width: usize) -> String {
     use std::fmt::Write as _;
 
     let styles = turtle_styles();
     let header = styles.get_header();
     let literal = styles.get_literal();
 
-    let command_width = PICK_EXAMPLES
-        .iter()
-        .map(|(command, _)| command.chars().count())
-        .max()
-        .unwrap_or_default();
-    let continuation = format!(
-        "\n{:width$}",
-        "",
-        width = EXAMPLE_INDENT.len() + command_width + EXAMPLE_GAP.len()
-    );
+    let command_width = example_command_width();
+    let description_column = EXAMPLE_INDENT + command_width + EXAMPLE_GAP;
+    let description_width = width.saturating_sub(description_column);
+
+    // On a narrow terminal the command column eats everything, so the
+    // description moves below its command instead of beside it.
+    let stacked = description_width < MIN_DESCRIPTION_WIDTH;
+    let (description_column, description_width) = if stacked {
+        let column = EXAMPLE_INDENT + EXAMPLE_GAP;
+        (column, width.saturating_sub(column))
+    } else {
+        (description_column, description_width)
+    };
 
     let mut examples = format!("{header}Examples:{header:#}");
     for (command, description) in PICK_EXAMPLES {
-        let padding = command_width - command.chars().count();
-        let description = description.replace('\n', &continuation);
-        write!(
-            examples,
-            "\n{EXAMPLE_INDENT}{literal}{command}{literal:#}{:padding$}{EXAMPLE_GAP}{description}",
-            ""
-        )
+        let mut lines = wrap_words(description, description_width).into_iter();
+
+        if stacked {
+            write!(examples, "\n{:EXAMPLE_INDENT$}{literal}{command}{literal:#}", "")
+        } else {
+            // Pad the command out to the description column and start the
+            // description beside it.
+            let padding = command_width - command.chars().count();
+            let first = lines.next().unwrap_or_default();
+            write!(
+                examples,
+                "\n{:EXAMPLE_INDENT$}{literal}{command}{literal:#}{:padding$}{:EXAMPLE_GAP$}{first}",
+                "", "", ""
+            )
+        }
         .expect("writing to a String cannot fail");
+
+        // Whatever is left hangs under the description column.
+        for line in lines {
+            write!(examples, "\n{:description_column$}{line}", "")
+                .expect("writing to a String cannot fail");
+        }
     }
     examples
 }
@@ -575,7 +708,7 @@ mod tests {
 
     #[test]
     fn command_definition_is_valid() {
-        command().debug_assert();
+        command_with_width(TEST_WIDTH).debug_assert();
     }
 
     #[test]
@@ -762,9 +895,13 @@ mod tests {
         );
     }
 
-    /// `pick --help`, with the ANSI escapes kept.
-    fn pick_help_ansi() -> String {
-        command()
+    /// Width the help tests lay out at, so they don't depend on the terminal
+    /// the suite happens to run in.
+    const TEST_WIDTH: usize = 100;
+
+    /// `pick --help` at `width` columns, with the ANSI escapes kept.
+    fn pick_help_ansi(width: usize) -> String {
+        command_with_width(width)
             .find_subcommand_mut(CMD_PICK)
             .expect("the pick subcommand exists")
             .render_long_help()
@@ -772,29 +909,21 @@ mod tests {
             .to_string()
     }
 
-    /// `pick --help` as it comes out when color is off. `Display for StyledStr`
-    /// strips escapes exactly like `anstream` does when printing.
-    fn pick_help_plain() -> String {
-        command()
+    /// `pick --help` at `width` columns, as it comes out when color is off.
+    /// `Display for StyledStr` strips escapes exactly like `anstream` does when
+    /// printing.
+    fn pick_help_plain(width: usize) -> String {
+        command_with_width(width)
             .find_subcommand_mut(CMD_PICK)
             .expect("the pick subcommand exists")
             .render_long_help()
             .to_string()
     }
 
-    /// Width of the command column, mirroring [`pick_examples`].
-    fn example_command_width() -> usize {
-        PICK_EXAMPLES
-            .iter()
-            .map(|(command, _)| command.chars().count())
-            .max()
-            .expect("there is at least one example")
-    }
-
     #[test]
     fn examples_use_the_same_styles_as_the_rest_of_the_help() {
         let styles = turtle_styles();
-        let ansi = pick_help_ansi();
+        let ansi = pick_help_ansi(TEST_WIDTH);
 
         let header = styles.get_header();
         assert!(
@@ -811,7 +940,7 @@ mod tests {
 
     #[test]
     fn examples_strip_cleanly_when_color_is_off() {
-        let plain = pick_help_plain();
+        let plain = pick_help_plain(TEST_WIDTH);
         assert!(
             !plain.contains('\u{1b}'),
             "no escape should survive into uncolored help"
@@ -819,44 +948,210 @@ mod tests {
         assert!(plain.contains("Examples:"));
     }
 
+    /// The example rows of the rendered help, in order.
+    fn example_rows(help: &str) -> Vec<&str> {
+        help.lines()
+            .skip_while(|line| !line.starts_with("Examples:"))
+            .skip(1)
+            .filter(|line| !line.trim().is_empty())
+            .collect()
+    }
+
     #[test]
-    fn example_descriptions_share_a_column() {
-        let plain = pick_help_plain();
+    fn every_example_starts_a_row_at_the_command_column() {
+        let plain = pick_help_plain(TEST_WIDTH);
         let width = example_command_width();
 
         for (command, description) in PICK_EXAMPLES {
-            let mut lines = description.lines();
-            let first = lines.next().expect("a description is never empty");
             let padding = width - command.chars().count();
+            let first = wrap_words(
+                description,
+                TEST_WIDTH - EXAMPLE_INDENT - width - EXAMPLE_GAP,
+            )
+            .into_iter()
+            .next()
+            .expect("a description is never empty");
             let row = format!(
-                "{EXAMPLE_INDENT}{command}{:padding$}{EXAMPLE_GAP}{first}",
-                ""
+                "{:EXAMPLE_INDENT$}{command}{:padding$}{:EXAMPLE_GAP$}{first}",
+                "", "", ""
             );
             assert!(
                 plain.lines().any(|line| line == row),
                 "missing example row: {row:?}"
             );
+        }
+    }
 
-            // Wrapped descriptions hang under the first line, not under the command.
-            let indent = EXAMPLE_INDENT.len() + width + EXAMPLE_GAP.len();
-            for rest in lines {
-                let row = format!("{:indent$}{rest}", "");
+    #[test]
+    fn wrapped_descriptions_hang_under_the_description_column() {
+        let plain = pick_help_plain(TEST_WIDTH);
+        let column = EXAMPLE_INDENT + example_command_width() + EXAMPLE_GAP;
+        let commands: Vec<&str> = PICK_EXAMPLES.iter().map(|(command, _)| *command).collect();
+
+        let mut wrapped = 0;
+        for row in example_rows(&plain) {
+            if commands
+                .iter()
+                .any(|command| row.trim_start().starts_with(command))
+            {
+                continue;
+            }
+            // Not a command row, so it is a wrapped description: it has to
+            // start exactly at the description column.
+            assert_eq!(
+                row.len() - row.trim_start().len(),
+                column,
+                "misaligned continuation line: {row:?}"
+            );
+            wrapped += 1;
+        }
+        assert!(wrapped > 0, "no description wrapped, so nothing was tested");
+    }
+
+    #[test]
+    fn examples_fit_every_width_they_are_laid_out_for() {
+        // Any longer and clap would re-wrap the block, losing the columns. The
+        // floor is the longest command, which cannot be broken up: on a
+        // terminal narrower than that, clap re-wrapping it is the best there is.
+        for width in [MIN_TERM_WIDTH, 40, 60, 80, TEST_WIDTH, MAX_TERM_WIDTH] {
+            let budget = width.max(EXAMPLE_INDENT + example_command_width());
+            for row in example_rows(&pick_help_plain(width)) {
                 assert!(
-                    plain.lines().any(|line| line == row),
-                    "misaligned continuation line: {row:?}"
+                    row.chars().count() <= budget,
+                    "at width {width}, example row is {} columns: {row:?}",
+                    row.chars().count()
                 );
             }
         }
     }
 
     #[test]
+    fn narrow_terminals_stack_the_description_under_its_command() {
+        // 45 columns leaves under `MIN_DESCRIPTION_WIDTH` beside a 36-column
+        // command, so the table has to give way.
+        let plain = pick_help_plain(45);
+        let rows = example_rows(&plain);
+
+        let command_row = format!("{:EXAMPLE_INDENT$}ssh $(kame pick)", "");
+        let position = rows
+            .iter()
+            .position(|row| *row == command_row)
+            .expect("commands keep their own row when stacked");
+        assert_eq!(
+            rows[position + 1],
+            format!(
+                "{:width$}Pick a host and connect to it with SSH",
+                "",
+                width = EXAMPLE_INDENT + EXAMPLE_GAP
+            ),
+            "the description should follow, indented under its command"
+        );
+    }
+
+    #[test]
+    fn resolve_width_clamps_into_the_designed_range() {
+        assert_eq!(resolve_width(Some(80)), 80);
+        assert_eq!(resolve_width(None), DEFAULT_TERM_WIDTH);
+        assert_eq!(resolve_width(Some(500)), MAX_TERM_WIDTH);
+        // `Command::term_width(0)` means "never wrap", so 0 must not survive.
+        assert_eq!(resolve_width(Some(0)), MIN_TERM_WIDTH);
+    }
+
+    #[test]
+    fn examples_avoid_claps_newline_token() {
+        // Checked on the source data, not the rendered help: by then clap has
+        // already turned any `{n}` into a newline, so the output can't show it.
+        for (command, description) in PICK_EXAMPLES {
+            assert!(
+                !command.contains("{n}") && !description.contains("{n}"),
+                "`{{n}}` becomes a newline in after_help: {command:?}"
+            );
+        }
+    }
+
+    #[test]
     fn examples_only_appear_under_pick() {
-        assert!(!pick_help_plain().contains("{n}"), "{{n}} is a clap token");
-        let probe_help = command()
+        let probe_help = command_with_width(TEST_WIDTH)
             .find_subcommand_mut(CMD_PROBE)
             .expect("the probe subcommand exists")
             .render_long_help()
             .to_string();
         assert!(!probe_help.contains("Examples:"));
+    }
+
+    #[test]
+    fn wrap_words_breaks_on_whitespace_only() {
+        assert_eq!(wrap_words("one two three", 7), ["one two", "three"]);
+        assert_eq!(wrap_words("one two three", 100), ["one two three"]);
+        // A word wider than the budget overflows rather than being split.
+        assert_eq!(
+            wrap_words("a supercalifragilistic b", 5),
+            ["a", "supercalifragilistic", "b"]
+        );
+        assert!(wrap_words("", 10).is_empty());
+    }
+
+    #[test]
+    fn detect_color_finds_an_explicit_flag() {
+        let scan =
+            |args: &[&str]| detect_color(&args.iter().map(OsString::from).collect::<Vec<_>>());
+
+        assert_eq!(scan(&["kame", "pick"]), None);
+        assert_eq!(
+            scan(&["kame", "--color", "never", "pick"]),
+            Some(ColorChoice::Never)
+        );
+        assert_eq!(
+            scan(&["kame", "pick", "--color", "always"]),
+            Some(ColorChoice::Always)
+        );
+        assert_eq!(
+            scan(&["kame", "pick", "--color=never"]),
+            Some(ColorChoice::Never)
+        );
+
+        // Unknown values stay `None` so clap reports them itself.
+        assert_eq!(scan(&["kame", "pick", "--color", "sometimes"]), None);
+        assert_eq!(scan(&["kame", "pick", "--color"]), None);
+    }
+
+    #[test]
+    fn detect_color_ignores_arguments_that_are_not_ours() {
+        let scan =
+            |args: &[&str]| detect_color(&args.iter().map(OsString::from).collect::<Vec<_>>());
+
+        // `--preview-cmd` swallows the rest of the line, so this `--color`
+        // belongs to the preview command, not to kame.
+        assert_eq!(
+            scan(&[
+                "kame",
+                "pick",
+                "--preview-cmd",
+                "ssh",
+                "--color",
+                "always",
+                "{}"
+            ]),
+            None
+        );
+        // Same past a `--` escape.
+        assert_eq!(scan(&["kame", "pick", "--", "--color", "always"]), None);
+        // A lookalike is not the flag.
+        assert_eq!(scan(&["kame", "pick", "--colorize", "always"]), None);
+    }
+
+    #[test]
+    fn detect_color_survives_non_utf8_arguments() {
+        use std::os::unix::ffi::OsStringExt as _;
+
+        let args = vec![
+            OsString::from("kame"),
+            OsString::from("pick"),
+            OsString::from("-F"),
+            OsString::from_vec(vec![0x2f, 0xff, 0xfe]),
+            OsString::from("--color"),
+            OsString::from("never"),
+        ];
+        assert_eq!(detect_color(&args), Some(ColorChoice::Never));
     }
 }
