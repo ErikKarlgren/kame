@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Command-line parsing for `kame`.
 //!
 //! The whole interface lives here and is built with clap's *builder* API — the
