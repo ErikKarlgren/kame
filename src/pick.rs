@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::cli::PickArgs;
+use anyhow::{Result, anyhow};
+use skim::{Skim, prelude::SkimOptionsBuilder};
+
+use crate::{cli::PickArgs, ssh::host_finder::parse_hosts};
 
 /// Choose a host
-pub fn pick(
+pub async fn pick(
     PickArgs {
         query,
         fields: _,
@@ -14,10 +17,7 @@ pub fn pick(
         json,
         preview_cmd,
     }: PickArgs,
-) {
-    if multi {
-        eprintln!("--multi not implemented yet")
-    }
+) -> Result<()> {
     if config.is_some() {
         eprintln!("--config not implemented yet")
     }
@@ -31,5 +31,22 @@ pub fn pick(
         todo!("--preview-cmd not implemented yet");
     }
 
-    //let options
+    let hosts = parse_hosts(
+        dirs::home_dir()
+            .ok_or(anyhow!("no home dir found"))?
+            .join(".ssh/config"),
+    )
+    .await?;
+
+    let options = SkimOptionsBuilder::default()
+        .multi(multi)
+        .query(query.unwrap_or("".into()))
+        .height("16")
+        .build()
+        .unwrap();
+    let output = Skim::run_items(options, hosts).unwrap();
+    for item in output.selected_items {
+        println!("Selected: {}", item.output());
+    }
+    Ok(())
 }
