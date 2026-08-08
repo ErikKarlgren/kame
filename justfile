@@ -5,7 +5,7 @@ check: fmt
     cargo check --all-targets --all-features
 
 clippy: fmt
-    cargo clippy --all-targets --all-features
+    cargo clippy --all-targets --all-features --fix --allow-dirty
 
 test: fmt clippy
     cargo test
