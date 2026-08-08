@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 #![warn(clippy::cargo)]

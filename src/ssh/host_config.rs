@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Access to the SSH configuration that OpenSSH resolves for a given host.
 //!
 //! Rather than parsing `~/.ssh/config` (and its `Include`s, `Match` blocks,

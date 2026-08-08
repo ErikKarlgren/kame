@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::Result;
