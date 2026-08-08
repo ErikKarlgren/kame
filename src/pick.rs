@@ -18,9 +18,6 @@ pub async fn pick(
         preview_cmd,
     }: PickArgs,
 ) -> Result<()> {
-    if config.is_some() {
-        eprintln!("--config not implemented yet")
-    }
     if literal {
         todo!("--literal not implemented yet");
     }
@@ -31,16 +28,12 @@ pub async fn pick(
         todo!("--preview-cmd not implemented yet");
     }
 
-    let hosts = parse_hosts(
-        dirs::home_dir()
-            .ok_or(anyhow!("no home dir found"))?
-            .join(".ssh/config"),
-    )
-    .await?;
+    let path = choose_config_path(config)?;
+    let hosts = parse_hosts(path).await?;
 
     let options = SkimOptionsBuilder::default()
         .multi(multi)
-        .query(query.unwrap_or("".into()))
+        .query(query.unwrap_or(String::new()))
         .height("16")
         .build()
         .unwrap();
@@ -49,4 +42,19 @@ pub async fn pick(
         println!("Selected: {}", item.output());
     }
     Ok(())
+}
+
+fn choose_config_path(
+    config: Option<std::path::PathBuf>,
+) -> Result<std::path::PathBuf, anyhow::Error> {
+    if let Some(p) = config {
+        Ok(p)
+    } else {
+        match dirs::home_dir() {
+            Some(p) => Ok(p.join(".ssh/config")),
+            None => Err(anyhow!(
+                "No home directory found. Please use the flag --config and provide an ssh config file"
+            )),
+        }
+    }
 }
