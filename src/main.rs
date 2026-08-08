@@ -20,6 +20,7 @@ use crate::{
 };
 
 mod cli;
+mod pick;
 mod ssh;
 
 #[tokio::main]
