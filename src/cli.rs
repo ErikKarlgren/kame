@@ -21,7 +21,8 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use clap::builder::{EnumValueParser, PossibleValue, ValueParser};
+use clap::builder::styling::{Ansi256Color, Style};
+use clap::builder::{EnumValueParser, PossibleValue, Styles, ValueParser};
 use clap::{Arg, ArgAction, ArgMatches, Command, Error, ValueEnum};
 
 /// Subcommand name for the fuzzy picker.
@@ -176,11 +177,21 @@ where
     from_matches(&mut cmd, &matches)
 }
 
+/// Create styles following the color-scheme of a slider turtle
+fn turtle_styles() -> Styles {
+    Styles::styled()
+        .header(Style::new().fg_color(Some(Ansi256Color(64).into())).bold())
+        .usage(Style::new().fg_color(Some(Ansi256Color(64).into())).bold())
+        .literal(Style::new().fg_color(Some(Ansi256Color(178).into())))
+        .placeholder(Style::new().fg_color(Some(Ansi256Color(184).into())))
+}
+
 /// Builds the clap [`Command`] describing the whole interface.
 #[must_use]
 pub fn command() -> Command {
     Command::new("kame")
         .version(env!("CARGO_PKG_VERSION"))
+        .styles(turtle_styles())
         .about("An SSH toolkit")
         // `-V` is top level only: `pick` already uses `-p` for `--port` and
         // `probe` for `--plain`, so a propagated version flag would be
