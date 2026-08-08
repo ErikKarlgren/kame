@@ -286,7 +286,7 @@ fn pick_command() -> Command {
                      no need for quotes). `{}` is a placeholder for the SSH alias",
                 ),
         )
-        .after_help(PICK_EXAMPLES)
+        .after_help(pick_examples())
 }
 
 /// The `--field` flag and its four single-letter shorthands.
@@ -325,19 +325,87 @@ fn pick_field_args() -> [Arg; 5] {
     ]
 }
 
-const PICK_EXAMPLES: &str = "\
-Examples:
-  ssh $(kame pick)                      Pick a host and connect to it with SSH
-  ssh -J proxy $(kame pick prod)        Pick a host and connect to it through a proxy. Starts fuzzy
-                                        search with \"prod\"
-  scp file $(kame pick):/tmp            Pick a host and copy a file to its /tmp dir
-  curl https://$(kame pick -i)/v1/api   Pick a host and curl its hostname
-  rm $(kame pick -m -c)                 Pick hosts and remove their control paths
-  kame pick -m -i -u --json             Pick hosts and print their hostnames and users as a json
-                                        array
-  kame pick -L -f identityfile 'web-*'  Print the SSH key files used for web-* hosts (quote any
-                                        args with '*' when run in a shell)
-  kame pick --preview-cmd cowsay -s {}  Pick a host with a funny preview (calls `cowsay -s {}`)";
+/// Example invocations listed at the bottom of `kame pick --help`, as
+/// (command, description) pairs.
+///
+/// A description may contain newlines; continuation lines are re-indented to
+/// the description column by [`pick_examples`], so the pairs stay readable here
+/// no matter how the columns end up laid out.
+const PICK_EXAMPLES: [(&str, &str); 8] = [
+    ("ssh $(kame pick)", "Pick a host and connect to it with SSH"),
+    (
+        "ssh -J proxy $(kame pick prod)",
+        "Pick a host and connect to it through a proxy. Starts fuzzy search with \"prod\"",
+    ),
+    (
+        "scp file $(kame pick):/tmp",
+        "Pick a host and copy a file to its /tmp dir",
+    ),
+    (
+        "curl https://$(kame pick -i)/v1/api",
+        "Pick a host and curl its hostname",
+    ),
+    (
+        "rm $(kame pick -m -c)",
+        "Pick hosts and remove their control paths",
+    ),
+    (
+        "kame pick -m -i -u --json",
+        "Pick hosts and print their hostnames and users as a json array",
+    ),
+    (
+        "kame pick -L -f identityfile 'web-*'",
+        "Print the SSH key files used for web-* hosts (quote any args with '*' when run in a shell)",
+    ),
+    (
+        "kame pick --preview-cmd cowsay -s {}",
+        "Pick a host with a funny preview (calls `cowsay -s {}`)",
+    ),
+];
+
+/// Indentation of an example row.
+const EXAMPLE_INDENT: &str = "  ";
+/// Gap between the command column and the description column.
+const EXAMPLE_GAP: &str = "  ";
+
+/// Renders the `Examples:` block, colored like the rest of the help.
+///
+/// clap does not style `after_help` for us — it treats it as opaque text and
+/// appends it verbatim — so the escapes are written by hand here, reusing the
+/// very [`Styles`] the rest of the help is built from so the two can't drift
+/// apart. When color is off, `anstream` strips these escapes on the way out
+/// along with clap's own, leaving the plain columns below.
+fn pick_examples() -> String {
+    use std::fmt::Write as _;
+
+    let styles = turtle_styles();
+    let header = styles.get_header();
+    let literal = styles.get_literal();
+
+    let command_width = PICK_EXAMPLES
+        .iter()
+        .map(|(command, _)| command.chars().count())
+        .max()
+        .unwrap_or_default();
+    let continuation = format!(
+        "\n{:width$}",
+        "",
+        width = EXAMPLE_INDENT.len() + command_width + EXAMPLE_GAP.len()
+    );
+
+    let mut examples = format!("{header}Examples:{header:#}");
+    for (command, description) in PICK_EXAMPLES {
+        let padding = command_width - command.chars().count();
+        let description = description.replace('\n', &continuation);
+        write!(
+            examples,
+            "\n{EXAMPLE_INDENT}{literal}{command}{literal:#}{:padding$}{EXAMPLE_GAP}{description}",
+            ""
+        )
+        .expect("writing to a String cannot fail");
+    }
+    examples
+}
 
 fn probe_command() -> Command {
     Command::new(CMD_PROBE)
@@ -692,5 +760,103 @@ mod tests {
             parse_err(&["kame", "probe", "--multi", "host"]),
             ErrorKind::UnknownArgument
         );
+    }
+
+    /// `pick --help`, with the ANSI escapes kept.
+    fn pick_help_ansi() -> String {
+        command()
+            .find_subcommand_mut(CMD_PICK)
+            .expect("the pick subcommand exists")
+            .render_long_help()
+            .ansi()
+            .to_string()
+    }
+
+    /// `pick --help` as it comes out when color is off. `Display for StyledStr`
+    /// strips escapes exactly like `anstream` does when printing.
+    fn pick_help_plain() -> String {
+        command()
+            .find_subcommand_mut(CMD_PICK)
+            .expect("the pick subcommand exists")
+            .render_long_help()
+            .to_string()
+    }
+
+    /// Width of the command column, mirroring [`pick_examples`].
+    fn example_command_width() -> usize {
+        PICK_EXAMPLES
+            .iter()
+            .map(|(command, _)| command.chars().count())
+            .max()
+            .expect("there is at least one example")
+    }
+
+    #[test]
+    fn examples_use_the_same_styles_as_the_rest_of_the_help() {
+        let styles = turtle_styles();
+        let ansi = pick_help_ansi();
+
+        let header = styles.get_header();
+        assert!(
+            ansi.contains(&format!("{header}Examples:{header:#}")),
+            "the Examples heading should use the same style as Options:/Arguments:"
+        );
+
+        let literal = styles.get_literal();
+        assert!(
+            ansi.contains(&format!("{literal}ssh $(kame pick){literal:#}")),
+            "example commands should use the same style as flag names"
+        );
+    }
+
+    #[test]
+    fn examples_strip_cleanly_when_color_is_off() {
+        let plain = pick_help_plain();
+        assert!(
+            !plain.contains('\u{1b}'),
+            "no escape should survive into uncolored help"
+        );
+        assert!(plain.contains("Examples:"));
+    }
+
+    #[test]
+    fn example_descriptions_share_a_column() {
+        let plain = pick_help_plain();
+        let width = example_command_width();
+
+        for (command, description) in PICK_EXAMPLES {
+            let mut lines = description.lines();
+            let first = lines.next().expect("a description is never empty");
+            let padding = width - command.chars().count();
+            let row = format!(
+                "{EXAMPLE_INDENT}{command}{:padding$}{EXAMPLE_GAP}{first}",
+                ""
+            );
+            assert!(
+                plain.lines().any(|line| line == row),
+                "missing example row: {row:?}"
+            );
+
+            // Wrapped descriptions hang under the first line, not under the command.
+            let indent = EXAMPLE_INDENT.len() + width + EXAMPLE_GAP.len();
+            for rest in lines {
+                let row = format!("{:indent$}{rest}", "");
+                assert!(
+                    plain.lines().any(|line| line == row),
+                    "misaligned continuation line: {row:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn examples_only_appear_under_pick() {
+        assert!(!pick_help_plain().contains("{n}"), "{{n}} is a clap token");
+        let probe_help = command()
+            .find_subcommand_mut(CMD_PROBE)
+            .expect("the probe subcommand exists")
+            .render_long_help()
+            .to_string();
+        assert!(!probe_help.contains("Examples:"));
     }
 }
