@@ -248,6 +248,17 @@ Host kept
         );
     }
 
+    /// Only the separator `=` is special — "Allow only one '=' to be skipped"
+    /// in `strdelim_internal`, and `argv_split` gives the character no meaning
+    /// at all — so `ssh alpha=beta` resolves against `Host alpha=beta`.
+    #[test]
+    fn an_equals_sign_inside_a_pattern_is_an_ordinary_character() {
+        assert_eq!(hosts_in("Host alpha=beta\n"), set(&["alpha=beta"]));
+        assert_eq!(hosts_in("Host one two=three\n"), set(&["one", "two=three"]));
+        assert_eq!(hosts_in("Host=alpha=beta\n"), set(&["alpha=beta"]));
+        assert_eq!(hosts_in("Host = alpha=beta\n"), set(&["alpha=beta"]));
+    }
+
     /// "A pattern consists of zero or more non-whitespace characters, '*' (a
     /// wildcard that matches zero or more characters), or '?' (a wildcard that
     /// matches exactly one character)." A pattern with a wildcard in it is not
@@ -335,15 +346,29 @@ Host kept
 
     /// "Arguments may optionally be enclosed in double quotes (\") in order to
     /// represent arguments containing spaces."
+    ///
+    /// A quote is not a delimiter but a state toggle inside the token
+    /// (`argv_split` in `misc.c`): a token still ends at the first *unquoted*
+    /// space, and the quote characters are dropped from the result. So a
+    /// partly quoted word glues back into one pattern, and a quoted space
+    /// keeps a pattern in one piece. `'` behaves exactly like `"`.
     #[test]
     fn quoted_arguments_are_unquoted() {
-        assert_eq!(hosts_in("Host \"alpha\"\n"), set(&["alpha"]));
+        assert_eq!(hosts_in(r#"Host "alpha""#), set(&["alpha"]));
         assert_eq!(
-            hosts_in("Host alpha \"bravo\" charlie\n"),
+            hosts_in(r#"Host alpha "bravo" charlie"#),
             set(&["alpha", "bravo", "charlie"])
         );
+
+        // Quotes that open and close mid-word leave the word intact.
+        assert_eq!(hosts_in(r#"Host chi"na""#), set(&["china"]));
+        assert_eq!(hosts_in(r"Host chi'na'"), set(&["china"]));
+
         // One pattern, spaces and all.
-        assert_eq!(hosts_in("Host \"hotel india\"\n"), set(&["hotel india"]));
+        assert_eq!(hosts_in(r#"Host "hotel india""#), set(&["hotel india"]));
+        assert_eq!(hosts_in(r#"Host "india i"ndia"#), set(&["india india"]));
+        assert_eq!(hosts_in(r#"Host chi"na china""#), set(&["china china"]));
+        assert_eq!(hosts_in(r#"host pi"zza pizz"a"#), set(&["pizza pizza"]));
     }
 
     #[test]
