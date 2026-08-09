@@ -4,13 +4,16 @@
 use anyhow::{Result, anyhow};
 use skim::{Skim, prelude::SkimOptionsBuilder};
 
-use crate::{cli::PickArgs, ssh::host_finder::parse_hosts};
+use crate::{
+    cli::PickArgs,
+    ssh::{host_config::HostConfig, host_finder::parse_hosts},
+};
 
 /// Choose a host
 pub async fn pick(
     PickArgs {
         query,
-        fields: _,
+        fields,
         multi,
         config,
         literal,
@@ -38,8 +41,13 @@ pub async fn pick(
         .build()
         .unwrap();
     let output = Skim::run_items(options, hosts).unwrap();
-    for item in output.selected_items {
-        println!("Selected: {}", item.output());
+    for host in output.selected_items {
+        let host_cfg = HostConfig::parse(host.output().as_ref()).await?;
+        for field in &fields {
+            for value in host_cfg.get(&field).unwrap_or(&["???".to_owned()]) {
+                println!("{}", &value);
+            }
+        }
     }
     Ok(())
 }
