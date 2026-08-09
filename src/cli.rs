@@ -89,7 +89,7 @@ pub enum Subcommand {
 }
 
 /// Arguments of `kame pick`.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PickArgs {
     /// Optional text to seed the fuzzy query with, or the literal pattern when
     /// `literal` is set.
@@ -108,6 +108,20 @@ pub struct PickArgs {
     /// `--preview-cmd`: the command and arguments overriding the default
     /// preview. `{}` is a placeholder for the SSH alias.
     pub preview_cmd: Option<Vec<String>>,
+}
+
+impl Default for PickArgs {
+    fn default() -> Self {
+        Self {
+            query: Default::default(),
+            fields: vec![ARG_HOSTNAME.into()],
+            multi: Default::default(),
+            config: Default::default(),
+            literal: Default::default(),
+            json: Default::default(),
+            preview_cmd: Default::default(),
+        }
+    }
 }
 
 /// Arguments of `kame probe`.
@@ -667,6 +681,9 @@ fn collect_fields(m: &ArgMatches) -> Vec<String> {
             fields.push(field);
         }
     }
+    if fields.is_empty() {
+        fields.push(ARG_HOSTNAME.into());
+    }
     fields
 }
 
@@ -761,7 +778,7 @@ mod tests {
     }
 
     #[test]
-    fn pick_defaults_are_empty() {
+    fn pick_defaults_to_hostname() {
         assert_eq!(pick(&["kame", "pick"]), PickArgs::default());
     }
 
