@@ -14,12 +14,19 @@ pub async fn parse_hosts(path: PathBuf) -> Result<HashSet<String>> {
     let mut hosts: HashSet<String> = HashSet::new();
     let file = File::open(&path).await?;
     let reader = BufReader::new(file);
-    let mut lines = reader.lines();
+    let lines = reader.lines();
+    extract_hosts(&mut hosts, lines).await?;
+    Ok(hosts)
+}
 
+async fn extract_hosts(
+    hosts: &mut HashSet<String>,
+    mut lines: tokio::io::Lines<BufReader<File>>,
+) -> Result<(), anyhow::Error> {
     while let Some(line) = lines.next_line().await? {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("Host") {
-            for host in trimmed.split_whitespace().skip(1) {
+        let mut words = line.split_ascii_whitespace();
+        if words.next() == Some("Host") {
+            for host in words {
                 // We only care about real aliases, not patterns
                 if host.contains('!') {
                     break;
@@ -30,6 +37,5 @@ pub async fn parse_hosts(path: PathBuf) -> Result<HashSet<String>> {
             }
         }
     }
-
-    Ok(hosts)
+    Ok(())
 }
