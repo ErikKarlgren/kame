@@ -24,15 +24,22 @@ async fn extract_hosts(
     hosts: &mut HashSet<String>,
     reader: impl AsyncBufRead + Unpin,
 ) -> Result<(), anyhow::Error> {
+    let mut lines = reader.lines();
     while let Some(line) = lines.next_line().await? {
-        let mut words = line.split_ascii_whitespace();
-        if words.next() == Some("Host") {
+        let mut words = line
+            .split(&['=', ' ', '\t', '\n', '\r'])
+            .filter(|l| !l.is_empty());
+
+        if words.next().is_some_and(|w| w.eq_ignore_ascii_case("host")) {
             for host in words {
-                // We only care about real aliases, not patterns
-                if host.contains('!') {
-                    break;
+                if host.starts_with('!') {
+                    continue; // Ignore empty and negated hosts
                 }
-                if !host.contains('*') && !host.contains('[') && !host.contains(']') {
+                if host.starts_with("#") {
+                    break; // Skip comments
+                }
+                // The only glob patterns allowed for hosts
+                if !host.contains('*') && !host.contains('?') {
                     hosts.insert(host.to_owned());
                 }
             }
