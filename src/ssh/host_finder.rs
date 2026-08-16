@@ -26,11 +26,9 @@ async fn extract_hosts(
 ) -> Result<(), anyhow::Error> {
     let mut lines = reader.lines();
     while let Some(line) = lines.next_line().await? {
-        let mut words = line
-            .split(&['=', ' ', '\t', '\n', '\r'])
-            .filter(|l| !l.is_empty());
-
+        let mut words = line.split_whitespace();
         if words.next().is_some_and(|w| w.eq_ignore_ascii_case("host")) {
+            let mut equal_sign_seen = false;
             for host in words {
                 if host.starts_with('!') {
                     continue; // Ignore empty and negated hosts
@@ -40,6 +38,12 @@ async fn extract_hosts(
                 }
                 // The only glob patterns allowed for hosts
                 if !host.contains('*') && !host.contains('?') {
+                    let host = if !equal_sign_seen && host.starts_with('=') {
+                        equal_sign_seen = true;
+                        &host[1..]
+                    } else {
+                        host
+                    };
                     hosts.insert(host.to_owned());
                 }
             }
