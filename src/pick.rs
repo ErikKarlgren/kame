@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use skim::{
     Skim,
     prelude::{SkimItem, SkimOptionsBuilder},
-    tui::PreviewCallback,
+    tui::{PreviewCallback, options::PreviewLayout},
 };
 use tokio::runtime::Handle;
 
@@ -41,18 +41,34 @@ pub async fn pick(
     let path = choose_config_path(config)?;
     let hosts = parse_hosts(path).await?;
 
+    let preview_layout = PreviewLayout {
+        direction: skim::tui::Direction::Right,
+        size: skim::tui::Size::Percent(50),
+        hidden: false,
+        offset: None,
+        wrap: false,
+        pty: false,
+    };
     let options = SkimOptionsBuilder::default()
         .multi(multi)
         .query(query.unwrap_or(String::new()))
         .height("16")
         .preview_fn(PreviewCallback::from(default_preview))
+        .preview_window(preview_layout)
+        .header(if multi {
+            "Pick hosts with TAB or SHIFT+TAB and press Enter"
+        } else {
+            "Pick a host and press Enter"
+        })
+        .selector_icon("🐢")
+        .show_cmd_error(true)
         .build()
         .unwrap();
     let output = Skim::run_items(options, hosts).unwrap();
     for host in output.selected_items {
         let host_cfg = HostConfig::parse(host.output().as_ref()).await?;
         for field in &fields {
-            for value in host_cfg.get(&field).unwrap_or(&["???".to_owned()]) {
+            for value in host_cfg.get(field).unwrap_or(&["???".to_owned()]) {
                 println!("{}", &value);
             }
         }
@@ -83,7 +99,7 @@ fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
                 results.push((
                     host.text().into_owned(),
                     HostConfig::parse(host.text().as_ref()).await,
-                ))
+                ));
             }
             results
         })
@@ -102,7 +118,7 @@ fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
                     let output: String = if values.len() == 1 {
                         values.first().unwrap().clone()
                     } else {
-                        format!("{:?}", values)
+                        format!("{values:?}")
                     };
                     lines.push(format!("{pretty_alias}: {output}"));
                 }
