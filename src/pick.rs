@@ -1,8 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::sync::Arc;
+
 use anyhow::{Result, anyhow};
-use skim::{Skim, prelude::SkimOptionsBuilder};
+use skim::{
+    Skim,
+    prelude::{SkimItem, SkimOptionsBuilder},
+    tui::PreviewCallback,
+};
+use tokio::runtime::Handle;
 
 use crate::{
     cli::PickArgs,
@@ -38,6 +45,7 @@ pub async fn pick(
         .multi(multi)
         .query(query.unwrap_or(String::new()))
         .height("16")
+        .preview_fn(PreviewCallback::from(default_preview))
         .build()
         .unwrap();
     let output = Skim::run_items(options, hosts).unwrap();
@@ -65,4 +73,44 @@ fn choose_config_path(
             )),
         }
     }
+}
+
+fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
+    let results = tokio::task::block_in_place(move || {
+        Handle::current().block_on(async {
+            let mut results = Vec::with_capacity(hosts.len());
+            for host in hosts {
+                results.push((
+                    host.text().into_owned(),
+                    HostConfig::parse(host.text().as_ref()).await,
+                ))
+            }
+            results
+        })
+    });
+
+    let mut lines = vec![];
+    for (host, config) in results {
+        lines.push(format!("모{host}"));
+        let value_not_found = ["???".to_owned()];
+        match config {
+            Ok(config) => {
+                for (pretty_alias, setting) in
+                    [("Hostname", "hostname"), ("User", "user"), ("Port", "port")]
+                {
+                    let values = config.get(setting).unwrap_or(&value_not_found);
+                    let output: String = if values.len() == 1 {
+                        values.first().unwrap().clone()
+                    } else {
+                        format!("{:?}", values)
+                    };
+                    lines.push(format!("{pretty_alias}: {output}"));
+                }
+            }
+            Err(err) => lines.push(format!(
+                "Error: Could not parse information for host: {err}"
+            )),
+        }
+    }
+    lines
 }
