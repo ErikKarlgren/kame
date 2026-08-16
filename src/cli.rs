@@ -113,13 +113,13 @@ pub struct PickArgs {
 impl Default for PickArgs {
     fn default() -> Self {
         Self {
-            query: Default::default(),
+            query: Option::default(),
             fields: vec![ARG_HOSTNAME.into()],
             multi: Default::default(),
-            config: Default::default(),
+            config: Option::default(),
             literal: Default::default(),
             json: Default::default(),
-            preview_cmd: Default::default(),
+            preview_cmd: Option::default(),
         }
     }
 }

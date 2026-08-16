@@ -68,7 +68,8 @@ pub async fn pick(
     for host in output.selected_items {
         let host_cfg = HostConfig::parse(host.output().as_ref()).await?;
         for field in &fields {
-            for value in host_cfg.get(field).unwrap_or(&["???".to_owned()]) {
+            let value_not_found = ["???".to_owned()];
+            for value in host_cfg.get(field).unwrap_or(&value_not_found) {
                 println!("{}", &value);
             }
         }
@@ -79,16 +80,15 @@ pub async fn pick(
 fn choose_config_path(
     config: Option<std::path::PathBuf>,
 ) -> Result<std::path::PathBuf, anyhow::Error> {
-    if let Some(p) = config {
-        Ok(p)
-    } else {
-        match dirs::home_dir() {
+    config.map_or_else(
+        #[allow(clippy::option_if_let_else, reason="if let else is clearer")]
+        || match dirs::home_dir() {
             Some(p) => Ok(p.join(".ssh/config")),
             None => Err(anyhow!(
                 "No home directory found. Please use the flag --config and provide an ssh config file"
             )),
         }
-    }
+        , Ok)
 }
 
 fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {

@@ -33,7 +33,7 @@ async fn extract_hosts(
                 if host.starts_with('!') {
                     continue; // Ignore empty and negated hosts
                 }
-                if host.starts_with("#") {
+                if host.starts_with('#') {
                     break; // Skip comments
                 }
                 // The only glob patterns allowed for hosts
@@ -331,7 +331,7 @@ Host kept
     }
 
     /// A pattern its own line negates is unreachable — `ssh self` skips the
-    /// block below and connects with plain defaults — so ssh_config(5)
+    /// block below and connects with plain defaults — so `ssh_config(5)`
     /// declares no usable alias on either of these lines.
     ///
     /// Collecting them anyway is a deliberate divergence: deciding otherwise
