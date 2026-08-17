@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
+use colored::{Colorize, control};
 use skim::{
     Skim,
     prelude::{SkimItem, SkimOptionsBuilder},
@@ -13,6 +14,7 @@ use tokio::runtime::Handle;
 
 use crate::{
     cli::PickArgs,
+    colors::{SHELL_GREEN, STRIPE_YELLOW},
     ssh::{host_config::HostConfig, host_finder::parse_hosts},
 };
 
@@ -60,6 +62,7 @@ pub async fn pick(
         } else {
             "Pick a host and press Enter"
         })
+        .print_score(true)
         .selector_icon("🐢")
         .show_cmd_error(true)
         .build()
@@ -92,6 +95,8 @@ fn choose_config_path(
 }
 
 fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
+    control::set_override(true); // force colors
+
     let results = tokio::task::block_in_place(move || {
         Handle::current().block_on(async {
             let mut results = Vec::with_capacity(hosts.len());
@@ -107,7 +112,12 @@ fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
 
     let mut lines = vec![];
     for (host, config) in results {
-        lines.push(format!("모{host}"));
+        lines.push(
+            format!("모{host}")
+                .ansi_color(SHELL_GREEN)
+                .bold()
+                .to_string(),
+        );
         let value_not_found = ["???".to_owned()];
         match config {
             Ok(config) => {
@@ -120,8 +130,12 @@ fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
                     } else {
                         format!("{values:?}")
                     };
-                    lines.push(format!("{pretty_alias}: {output}"));
+                    lines.push(format!(
+                        "{} {output}",
+                        pretty_alias.ansi_color(STRIPE_YELLOW)
+                    ));
                 }
+                lines.push(String::new());
             }
             Err(err) => lines.push(format!(
                 "Error: Could not parse information for host: {err}"

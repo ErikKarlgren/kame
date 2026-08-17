@@ -28,6 +28,8 @@ use clap::builder::styling::{Ansi256Color, Style};
 use clap::builder::{EnumValueParser, Styles, ValueParser};
 use clap::{Arg, ArgAction, ArgMatches, ColorChoice, Command, Error};
 
+use crate::colors;
+
 /// Subcommand name for the fuzzy picker.
 const CMD_PICK: &str = "pick";
 /// Subcommand name for the host prober.
@@ -179,11 +181,11 @@ where
 }
 
 /// Shell green, for the section headings.
-const SHELL_GREEN: Ansi256Color = Ansi256Color(64);
+const SHELL_GREEN: Ansi256Color = Ansi256Color(colors::SHELL_GREEN);
 /// Stripe yellow, for flags and other text typed literally.
-const STRIPE_YELLOW: Ansi256Color = Ansi256Color(178);
+const STRIPE_YELLOW: Ansi256Color = Ansi256Color(colors::STRIPE_YELLOW);
 /// The paler yellow of the plastron, for value placeholders.
-const PLASTRON_YELLOW: Ansi256Color = Ansi256Color(184);
+const PLASTRON_YELLOW: Ansi256Color = Ansi256Color(colors::PLASTRON_YELLOW);
 
 /// Create styles following the color-scheme of a slider turtle
 ///
