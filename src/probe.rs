@@ -4,7 +4,7 @@
 use std::fmt::Write;
 
 use crate::{cli::ProbeArgs, ssh::host_config::HostConfig};
-use colored::Colorize;
+use colored::{Colorize, control};
 
 pub async fn probe(
     ProbeArgs {
@@ -26,6 +26,10 @@ pub async fn probe(
     }
     if no_probes {
         todo!("no_probes not implemented")
+    }
+
+    if !plain {
+        control::set_override(true); // force colors
     }
 
     let mut output = format!("{}\n", render_host(&host, plain));
