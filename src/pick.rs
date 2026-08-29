@@ -83,7 +83,7 @@ pub async fn pick(
         for field in &fields {
             let value_not_found = ["???".to_owned()];
             for value in host_cfg.get(field).unwrap_or(&value_not_found) {
-                println!("{}", &value);
+                println!("{value}");
             }
         }
     }
