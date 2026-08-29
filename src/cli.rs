@@ -24,11 +24,10 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use clap::builder::styling::{Ansi256Color, Style};
+use clap::builder::styling::AnsiColor::{Green, Yellow};
+use clap::builder::styling::Style;
 use clap::builder::{EnumValueParser, Styles, ValueParser};
 use clap::{Arg, ArgAction, ArgMatches, ColorChoice, Command, Error};
-
-use crate::colors;
 
 /// Subcommand name for the fuzzy picker.
 const CMD_PICK: &str = "pick";
@@ -116,7 +115,7 @@ impl Default for PickArgs {
     fn default() -> Self {
         Self {
             query: Option::default(),
-            fields: vec![ARG_HOSTNAME.into()],
+            fields: vec![],
             multi: Default::default(),
             config: Option::default(),
             literal: Default::default(),
@@ -180,25 +179,19 @@ where
     from_matches(&mut cmd, &matches)
 }
 
-/// Shell green, for the section headings.
-const SHELL_GREEN: Ansi256Color = Ansi256Color(colors::SHELL_GREEN);
-/// Stripe yellow, for flags and other text typed literally.
-const STRIPE_YELLOW: Ansi256Color = Ansi256Color(colors::STRIPE_YELLOW);
-/// The paler yellow of the plastron, for value placeholders.
-const PLASTRON_YELLOW: Ansi256Color = Ansi256Color(colors::PLASTRON_YELLOW);
-
 /// Create styles following the color-scheme of a slider turtle
 ///
 /// Only the help-text styles are overridden; [`Styles::styled`] keeps clap's
 /// defaults for errors and invalid values, which stay red because that carries
 /// meaning a turtle palette shouldn't override.
 fn turtle_styles() -> Styles {
-    let shell = Style::new().fg_color(Some(SHELL_GREEN.into())).bold();
+    let green = Style::new().fg_color(Some(Green.into())).bold();
+    let yellow = Style::new().fg_color(Some(Yellow.into()));
     Styles::styled()
-        .header(shell)
-        .usage(shell)
-        .literal(Style::new().fg_color(Some(STRIPE_YELLOW.into())))
-        .placeholder(Style::new().fg_color(Some(PLASTRON_YELLOW.into())))
+        .header(green)
+        .usage(green)
+        .literal(yellow)
+        .placeholder(yellow)
 }
 
 /// Finds an explicit `--color <WHEN>` in the raw arguments.
@@ -682,9 +675,6 @@ fn collect_fields(m: &ArgMatches) -> Vec<String> {
         if !fields.contains(&field) {
             fields.push(field);
         }
-    }
-    if fields.is_empty() {
-        fields.push(ARG_HOSTNAME.into());
     }
     fields
 }

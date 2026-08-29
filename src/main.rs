@@ -17,7 +17,6 @@ use crate::{
 };
 
 mod cli;
-mod colors;
 mod pick;
 mod ssh;
 

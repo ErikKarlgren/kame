@@ -8,13 +8,12 @@ use colored::{Colorize, control};
 use skim::{
     Skim,
     prelude::{SkimItem, SkimOptionsBuilder},
-    tui::{PreviewCallback, options::PreviewLayout},
+    tui::{BorderType, PreviewCallback, options::PreviewLayout},
 };
 use tokio::runtime::Handle;
 
 use crate::{
     cli::PickArgs,
-    colors::{SHELL_GREEN, STRIPE_YELLOW},
     ssh::{host_config::HostConfig, host_finder::parse_hosts},
 };
 
@@ -44,10 +43,10 @@ pub async fn pick(
     let hosts = parse_hosts(path).await?;
 
     let preview_layout = PreviewLayout {
-        direction: skim::tui::Direction::Right,
-        size: skim::tui::Size::Percent(50),
+        direction: skim::tui::Direction::Left,
+        size: skim::tui::Size::Fixed(40),
         hidden: false,
-        offset: None,
+        offset: Some("10".to_owned()),
         wrap: false,
         pty: false,
     };
@@ -62,14 +61,25 @@ pub async fn pick(
         } else {
             "Pick a host and press Enter"
         })
-        .print_score(true)
         .selector_icon("🐢")
+        .multi_select_icon("🐚")
+        .highlight_line(true)
+        .color(
+            "16,current_bg:2,current:0:bold,matched:1,current_match:9,current_match_bg:2,border:8,prompt:3,header:3,selected:3",
+        )
+        .cycle(true)
         .show_cmd_error(true)
+        .border(BorderType::Rounded)
+        .border_no_collapse(true)
         .build()
         .unwrap();
     let output = Skim::run_items(options, hosts).unwrap();
     for host in output.selected_items {
-        let host_cfg = HostConfig::parse(host.output().as_ref()).await?;
+        if fields.is_empty() {
+            println!("{}", host.text());
+            continue;
+        }
+        let host_cfg = HostConfig::parse(host.text().as_ref()).await?;
         for field in &fields {
             let value_not_found = ["???".to_owned()];
             for value in host_cfg.get(field).unwrap_or(&value_not_found) {
@@ -112,12 +122,7 @@ fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
 
     let mut lines = vec![];
     for (host, config) in results {
-        lines.push(
-            format!("모{host}")
-                .ansi_color(SHELL_GREEN)
-                .bold()
-                .to_string(),
-        );
+        lines.push(format!("모{host}").green().bold().to_string());
         let value_not_found = ["???".to_owned()];
         match config {
             Ok(config) => {
@@ -130,10 +135,7 @@ fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
                     } else {
                         format!("{values:?}")
                     };
-                    lines.push(format!(
-                        "{} {output}",
-                        pretty_alias.ansi_color(STRIPE_YELLOW)
-                    ));
+                    lines.push(format!("{} {output}", pretty_alias.yellow()));
                 }
                 lines.push(String::new());
             }
