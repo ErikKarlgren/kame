@@ -67,14 +67,19 @@ pub async fn pick(
         preview_cmd,
     }: PickArgs,
 ) -> Result<()> {
-    if literal {
-        todo!("--literal not implemented yet");
-    }
     if json {
         todo!("--json not implemented yet");
     }
     if preview_cmd.is_some() {
         todo!("--preview-cmd not implemented yet");
+    }
+
+    if literal {
+        if let Some(host) = query {
+            return print_host(host, &fields).await;
+        }
+        eprintln!("No host was given");
+        exit(1);
     }
 
     let path = choose_config_path(config)?;
@@ -85,7 +90,7 @@ pub async fn pick(
 
     let options = build_skim_options(query, multi).unwrap();
     let output = Skim::run_items(options, hosts).unwrap();
-    print_to_stdout(&output, &fields).await?;
+    print_skim_output(&output, &fields).await?;
     Ok(())
 }
 
@@ -118,22 +123,22 @@ fn build_skim_options(
         .build()
 }
 
-async fn print_to_stdout(output: &SkimOutput, fields: &[String]) -> Result<()> {
-    async fn print_host<D: Display + Into<String>>(host: D, fields: &[String]) -> Result<()> {
-        if fields.is_empty() {
-            println!("{host}");
-            return Ok(());
-        }
-        let host_cfg = HostConfig::parse(&host.into()).await?;
-        for field in fields {
-            let value_not_found = ["???".to_owned()];
-            for value in host_cfg.get(field).unwrap_or(&value_not_found) {
-                println!("{value}");
-            }
-        }
-        Ok(())
+async fn print_host<D: Display + Into<String>>(host: D, fields: &[String]) -> Result<()> {
+    if fields.is_empty() {
+        println!("{host}");
+        return Ok(());
     }
+    let host_cfg = HostConfig::parse(&host.into()).await?;
+    for field in fields {
+        let value_not_found = ["???".to_owned()];
+        for value in host_cfg.get(field).unwrap_or(&value_not_found) {
+            println!("{value}");
+        }
+    }
+    Ok(())
+}
 
+async fn print_skim_output(output: &SkimOutput, fields: &[String]) -> Result<()> {
     if output.is_abort {
         exit(1);
     }
