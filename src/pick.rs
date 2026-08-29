@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
-use colored::{Colorize, control};
+use colored::control;
 use skim::{
     Skim,
     prelude::{SkimItem, SkimOptionsBuilder},
@@ -13,7 +13,8 @@ use skim::{
 use tokio::runtime::Handle;
 
 use crate::{
-    cli::PickArgs,
+    cli::{PickArgs, ProbeArgs},
+    probe::probe,
     ssh::{host_config::HostConfig, host_finder::parse_hosts},
 };
 
@@ -107,42 +108,21 @@ fn choose_config_path(
 fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
     control::set_override(true); // force colors
 
-    let results = tokio::task::block_in_place(move || {
+    tokio::task::block_in_place(move || {
         Handle::current().block_on(async {
             let mut results = Vec::with_capacity(hosts.len());
             for host in hosts {
-                results.push((
-                    host.text().into_owned(),
-                    HostConfig::parse(host.text().as_ref()).await,
-                ));
+                let output = probe(ProbeArgs {
+                    host: host.text().into_owned(),
+                    verbose: false,
+                    plain: false,
+                    json: false,
+                    no_probes: false,
+                })
+                .await;
+                results.push(output);
             }
             results
         })
-    });
-
-    let mut lines = vec![];
-    for (host, config) in results {
-        lines.push(format!("모{host}").green().bold().to_string());
-        let value_not_found = ["???".to_owned()];
-        match config {
-            Ok(config) => {
-                for (pretty_alias, setting) in
-                    [("Hostname", "hostname"), ("User", "user"), ("Port", "port")]
-                {
-                    let values = config.get(setting).unwrap_or(&value_not_found);
-                    let output: String = if values.len() == 1 {
-                        values.first().unwrap().clone()
-                    } else {
-                        format!("{values:?}")
-                    };
-                    lines.push(format!("{} {output}", pretty_alias.yellow()));
-                }
-                lines.push(String::new());
-            }
-            Err(err) => lines.push(format!(
-                "Error: Could not parse information for host: {err}"
-            )),
-        }
-    }
-    lines
+    })
 }

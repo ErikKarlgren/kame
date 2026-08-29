@@ -14,10 +14,12 @@ use anyhow::Result;
 use crate::{
     cli::{Subcommand, parse_args},
     pick::pick,
+    probe::probe,
 };
 
 mod cli;
 mod pick;
+mod probe;
 mod ssh;
 
 #[tokio::main]
@@ -25,7 +27,10 @@ async fn main() -> Result<()> {
     let cli = parse_args();
     match cli.command {
         Subcommand::Pick(pick_args) => pick(pick_args).await?,
-        Subcommand::Probe(_probe_args) => todo!(),
+        Subcommand::Probe(probe_args) => {
+            let to_print = probe(probe_args).await;
+            println!("{to_print}");
+        }
     }
     Ok(())
 }
