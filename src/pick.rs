@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::sync::Arc;
+use std::borrow::Cow;
 
 use anyhow::{Result, anyhow};
-use colored::control;
 use skim::{
-    Skim,
+    ItemPreview, PreviewContext, Skim,
     prelude::{SkimItem, SkimOptionsBuilder},
-    tui::{BorderType, PreviewCallback, options::PreviewLayout},
+    tui::{BorderType, options::PreviewLayout},
 };
 use tokio::runtime::Handle;
 
@@ -17,6 +16,31 @@ use crate::{
     probe::probe,
     ssh::{host_config::HostConfig, host_finder::parse_hosts},
 };
+
+struct SshHost {
+    hostname: String,
+}
+
+impl SkimItem for SshHost {
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        Cow::Borrowed(&self.hostname)
+    }
+    fn preview(&self, _ctx: PreviewContext<'_>) -> ItemPreview {
+        let text = tokio::task::block_in_place(|| {
+            Handle::current().block_on(async {
+                probe(ProbeArgs {
+                    host: self.hostname.clone(),
+                    verbose: false,
+                    plain: false,
+                    json: false,
+                    no_probes: false,
+                })
+                .await
+            })
+        });
+        ItemPreview::Text(text)
+    }
+}
 
 /// Choose a host
 pub async fn pick(
@@ -41,7 +65,10 @@ pub async fn pick(
     }
 
     let path = choose_config_path(config)?;
-    let hosts = parse_hosts(path).await?;
+    let hosts = parse_hosts(path)
+        .await?
+        .into_iter()
+        .map(|hostname| SshHost { hostname });
 
     let preview_layout = PreviewLayout {
         direction: skim::tui::Direction::Left,
@@ -55,8 +82,8 @@ pub async fn pick(
         .multi(multi)
         .query(query.unwrap_or(String::new()))
         .height("16")
-        .preview_fn(PreviewCallback::from(default_preview))
         .preview_window(preview_layout)
+        .preview("") // needed to enable the preview pane
         .header(if multi {
             "Pick hosts with TAB or SHIFT+TAB and press Enter"
         } else {
@@ -103,26 +130,4 @@ fn choose_config_path(
             )),
         }
         , Ok)
-}
-
-fn default_preview(hosts: Vec<Arc<dyn SkimItem>>) -> Vec<String> {
-    control::set_override(true); // force colors
-
-    tokio::task::block_in_place(move || {
-        Handle::current().block_on(async {
-            let mut results = Vec::with_capacity(hosts.len());
-            for host in hosts {
-                let output = probe(ProbeArgs {
-                    host: host.text().into_owned(),
-                    verbose: false,
-                    plain: false,
-                    json: false,
-                    no_probes: false,
-                })
-                .await;
-                results.push(output);
-            }
-            results
-        })
-    })
 }
