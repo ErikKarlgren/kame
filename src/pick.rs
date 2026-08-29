@@ -7,7 +7,11 @@ use anyhow::{Result, anyhow};
 use skim::{
     ItemPreview, PreviewContext, Skim,
     prelude::{SkimItem, SkimOptionsBuilder},
-    tui::{BorderType, options::PreviewLayout},
+    tui::{
+        BorderType,
+        options::PreviewLayout,
+        statusline::{Info, InfoDisplay},
+    },
 };
 use tokio::runtime::Handle;
 
@@ -100,6 +104,7 @@ pub async fn pick(
         .show_cmd_error(true)
         .border(BorderType::Rounded)
         .border_no_collapse(true)
+        .info(Info{ display: InfoDisplay::Hidden, separator: None })
         .build()
         .unwrap();
     let output = Skim::run_items(options, hosts).unwrap();
