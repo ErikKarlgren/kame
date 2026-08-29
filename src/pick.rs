@@ -42,6 +42,15 @@ impl SkimItem for SshHost {
     }
 }
 
+const PREVIEW_LAYOUT: PreviewLayout = PreviewLayout {
+    direction: skim::tui::Direction::Left,
+    size: skim::tui::Size::Fixed(40),
+    hidden: false,
+    wrap: false,
+    pty: false,
+    offset: None,
+};
+
 /// Choose a host
 pub async fn pick(
     PickArgs {
@@ -70,20 +79,12 @@ pub async fn pick(
         .into_iter()
         .map(|hostname| SshHost { hostname });
 
-    let preview_layout = PreviewLayout {
-        direction: skim::tui::Direction::Left,
-        size: skim::tui::Size::Fixed(40),
-        hidden: false,
-        offset: Some("10".to_owned()),
-        wrap: false,
-        pty: false,
-    };
     let options = SkimOptionsBuilder::default()
         .multi(multi)
         .query(query.unwrap_or(String::new()))
         .height("16")
-        .preview_window(preview_layout)
         .preview("") // needed to enable the preview pane
+        .preview_window(PREVIEW_LAYOUT)
         .header(if multi {
             "Pick hosts with TAB or SHIFT+TAB and press Enter"
         } else {
