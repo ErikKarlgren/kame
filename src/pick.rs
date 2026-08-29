@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt::Display, process::exit};
 
 use anyhow::{Result, anyhow};
 use skim::{
-    ItemPreview, PreviewContext, Skim,
-    prelude::{SkimItem, SkimOptionsBuilder},
+    ItemPreview, PreviewContext, Skim, SkimOutput,
+    prelude::{SkimItem, SkimOptions, SkimOptionsBuilder, options::SkimOptionsBuilderError},
     tui::{
         BorderType,
         options::PreviewLayout,
@@ -83,9 +83,19 @@ pub async fn pick(
         .into_iter()
         .map(|hostname| SshHost { hostname });
 
-    let options = SkimOptionsBuilder::default()
+    let options = build_skim_options(query, multi).unwrap();
+    let output = Skim::run_items(options, hosts).unwrap();
+    print_to_stdout(&output, &fields).await?;
+    Ok(())
+}
+
+fn build_skim_options(
+    query: Option<String>,
+    multi: bool,
+) -> Result<SkimOptions, SkimOptionsBuilderError> {
+    SkimOptionsBuilder::default()
         .multi(multi)
-        .query(query.unwrap_or(String::new()))
+        .query(query.unwrap_or_default())
         .height("16")
         .preview("") // needed to enable the preview pane
         .preview_window(PREVIEW_LAYOUT)
@@ -106,20 +116,35 @@ pub async fn pick(
         .border_no_collapse(true)
         .info(Info{ display: InfoDisplay::Hidden, separator: None })
         .build()
-        .unwrap();
-    let output = Skim::run_items(options, hosts).unwrap();
-    for host in output.selected_items {
+}
+
+async fn print_to_stdout(output: &SkimOutput, fields: &[String]) -> Result<()> {
+    async fn print_host<D: Display + Into<String>>(host: D, fields: &[String]) -> Result<()> {
         if fields.is_empty() {
-            println!("{}", host.text());
-            continue;
+            println!("{host}");
+            return Ok(());
         }
-        let host_cfg = HostConfig::parse(host.text().as_ref()).await?;
-        for field in &fields {
+        let host_cfg = HostConfig::parse(&host.into()).await?;
+        for field in fields {
             let value_not_found = ["???".to_owned()];
             for value in host_cfg.get(field).unwrap_or(&value_not_found) {
                 println!("{value}");
             }
         }
+        Ok(())
+    }
+
+    if output.is_abort {
+        exit(1);
+    }
+
+    if output.selected_items.is_empty() {
+        return print_host(&output.query, fields).await;
+    }
+
+    for host in &output.selected_items {
+        let host = host.text();
+        print_host(host, fields).await?;
     }
     Ok(())
 }
