@@ -10,10 +10,12 @@ use tokio::{
 };
 
 /// Parse hosts from a single file
-pub async fn parse_hosts(path: PathBuf) -> Result<HashSet<String>> {
+pub async fn parse_hosts(path: PathBuf) -> Result<Vec<String>> {
     let mut hosts: HashSet<String> = HashSet::new();
     let file = File::open(&path).await?;
     extract_hosts(&mut hosts, BufReader::new(file)).await?;
+    let mut hosts: Vec<_> = hosts.into_iter().collect();
+    hosts.sort();
     Ok(hosts)
 }
 

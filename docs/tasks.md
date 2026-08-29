@@ -28,10 +28,6 @@ Pending tasks to implement. I will be updating this as I need to.
       near-empty picker with no explanation
     - `REALISTIC_CONFIG` already pins the current behaviour; the tests need
       updating either way
-- [ ] Give hosts a stable order
-    - `parse_hosts` returns a `HashSet`, so the picker list is reshuffled on
-      every launch and muscle memory never forms
-    - Sorted, or config order preserved — config order is probably nicer
 
 ## Resolving fields (`ssh -G`)
 - [ ] Pass `-F <config>` through to `ssh -G`
