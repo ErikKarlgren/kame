@@ -16,3 +16,4 @@ Use the following commands for verification:
     - For ensuring everything's ok (tests, clippy, formatting)
     - It doesn't modify any code
     - Run every so often to verify nothing's broken
+    - Don't fix nursery lints, but notify the user
