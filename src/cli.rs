@@ -128,6 +128,8 @@ pub struct ProbeArgs {
     pub json: bool,
     /// `-N/--no-probes`: only report what `ssh -G` says, run no network probes.
     pub no_probes: bool,
+    /// `-F/--config`: search this file instead of `~/.ssh/config`.
+    pub config: Option<PathBuf>,
 }
 
 /// Parses the process arguments, exiting on `--help`, `--version` or a usage
@@ -291,14 +293,9 @@ fn pick_command(width: usize) -> Command {
                     "Choose multiple hosts and print desired info for all of them in separate lines",
                 ),
         )
-        .arg(
-            Arg::new(ARG_CONFIG)
-                .short('F')
-                .long("config")
-                .value_name("FILE")
-                .value_parser(ValueParser::path_buf())
-                .help("Search aliases in the given file instead of ~/.ssh/config"),
-        )
+        .arg(config_arg(
+            "Search aliases in the given file instead of ~/.ssh/config",
+        ))
         .arg(
             Arg::new(ARG_LITERAL)
                 .short('L')
@@ -369,6 +366,20 @@ fn pick_field_args() -> [Arg; 5] {
             .action(ArgAction::SetTrue)
             .help("Alias of `--field controlpath`"),
     ]
+}
+
+/// The `-F/--config` flag, shared by `pick` and `probe`.
+///
+/// Both spell the flag the same way `ssh -F` does; only the wording of the help
+/// differs, since `pick` searches the file while `probe` just resolves one host
+/// against it.
+fn config_arg(help: &'static str) -> Arg {
+    Arg::new(ARG_CONFIG)
+        .short('F')
+        .long("config")
+        .value_name("FILE")
+        .value_parser(ValueParser::path_buf())
+        .help(help)
 }
 
 /// Example invocations listed at the bottom of `kame pick --help`, as
@@ -578,6 +589,9 @@ fn probe_command() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("Skip network probes, only show info parsed from `ssh -G`"),
         )
+        .arg(config_arg(
+            "Resolve the host against the given file instead of ~/.ssh/config",
+        ))
 }
 
 /// Turns clap's [`ArgMatches`] into the normalized [`Cli`].
@@ -672,6 +686,7 @@ fn probe_args(m: &ArgMatches) -> ProbeArgs {
         plain: m.get_flag(ARG_PLAIN),
         json: m.get_flag(ARG_JSON),
         no_probes: m.get_flag(ARG_NO_PROBES),
+        config: m.get_one::<PathBuf>(ARG_CONFIG).cloned(),
     }
 }
 
@@ -875,6 +890,62 @@ mod tests {
         assert!(args.no_probes);
         assert!(args.json);
         assert!(!args.plain);
+        assert_eq!(args.config, None);
+    }
+
+    #[test]
+    fn config_is_optional_and_spelled_the_same_in_both_subcommands() {
+        assert_eq!(pick(&["kame", "pick"]).config, None);
+        assert_eq!(probe(&["kame", "probe", "host"]).config, None);
+
+        let expected = Some(PathBuf::from("/tmp/cfg"));
+        let spellings: [&[&str]; 3] = [
+            &["kame", "probe", "-F", "/tmp/cfg", "host"],
+            &["kame", "probe", "--config", "/tmp/cfg", "host"],
+            &["kame", "probe", "host", "--config=/tmp/cfg"],
+        ];
+        for args in spellings {
+            let parsed = probe(args);
+            assert_eq!(parsed.config, expected, "for {args:?}");
+            // The path must not be mistaken for the positional host.
+            assert_eq!(parsed.host, "host", "for {args:?}");
+        }
+        assert_eq!(
+            pick(&["kame", "pick", "--config", "/tmp/cfg"]).config,
+            expected
+        );
+    }
+
+    #[test]
+    fn config_requires_a_value() {
+        assert_eq!(
+            parse_err(&["kame", "probe", "host", "-F"]),
+            ErrorKind::InvalidValue
+        );
+    }
+
+    #[test]
+    fn config_keeps_non_utf8_paths() {
+        use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
+
+        let path = OsString::from_vec(vec![0x2f, 0xff, 0xfe]);
+        let cli = try_parse_from([
+            OsString::from("kame"),
+            OsString::from("probe"),
+            OsString::from("-F"),
+            path.clone(),
+            OsString::from("host"),
+        ])
+        .expect("a non-UTF-8 path is a valid file name");
+        let Subcommand::Probe(args) = cli.command else {
+            panic!("expected the probe subcommand");
+        };
+        assert_eq!(
+            args.config
+                .as_deref()
+                .map(|path| path.as_os_str().as_bytes()),
+            Some(path.as_bytes())
+        );
     }
 
     #[test]

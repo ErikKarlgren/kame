@@ -8,7 +8,7 @@
 //! `ssh -G <host>` and read back the fully resolved key/value pairs.
 
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, vec::Vec};
+use std::{collections::HashMap, ffi::OsString, path::Path, vec::Vec};
 use tokio::process::Command;
 
 /// The effective SSH configuration for a single host, as reported by
@@ -33,13 +33,26 @@ impl HostConfig {
     /// `Host` entry from the SSH config rather than a real DNS name. No network
     /// connection is made: `-G` only evaluates the configuration.
     ///
+    /// `custom_config` is an optional path to a non-default ssh config path. If
+    /// `None`, the default ssh config path will be used.
+    ///
     /// # Errors
     ///
     /// Returns an error if `ssh` cannot be spawned (e.g. not on `PATH`), if it
     /// exits with a non-zero status, in which case its stderr is included in the
     /// message, or if the output format isn't the expected one.
-    pub async fn parse(hostname: &str) -> Result<Self> {
-        let output = Command::new("ssh").args(["-G", hostname]).output().await?;
+    pub async fn parse(hostname: &str, custom_config: Option<&Path>) -> Result<Self> {
+        let mut args: Vec<OsString> = vec!["-G".into(), hostname.into()];
+        if let Some(custom_config) = custom_config {
+            if !custom_config.is_file() {
+                return Err(anyhow!(
+                    "Error: path '{}' is not a regular file",
+                    custom_config.display()
+                ));
+            }
+            args.extend(["-F".into(), custom_config.into()]);
+        }
+        let output = Command::new("ssh").args(args).output().await?;
 
         if !output.status.success() {
             return Err(anyhow!(

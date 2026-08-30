@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{borrow::Cow, fmt::Display, process::exit};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+    process::exit,
+};
 
 use anyhow::{Result, anyhow};
 use skim::{
@@ -23,6 +27,7 @@ use crate::{
 
 struct SshHost {
     hostname: String,
+    ssh_config: Option<PathBuf>,
 }
 
 impl SkimItem for SshHost {
@@ -38,6 +43,7 @@ impl SkimItem for SshHost {
                     plain: false,
                     json: false,
                     no_probes: false,
+                    config: self.ssh_config.clone(),
                 })
                 .await
             })
@@ -76,21 +82,24 @@ pub async fn pick(
 
     if literal {
         if let Some(host) = query {
-            return print_host(host, &fields).await;
+            return print_host(host, &fields, config.as_deref()).await;
         }
         eprintln!("No host was given");
         exit(1);
     }
 
-    let path = choose_config_path(config)?;
-    let hosts = parse_hosts(path)
+    let path = choose_config_path(config.as_deref())?;
+    let hosts = parse_hosts(&path)
         .await?
         .into_iter()
-        .map(|hostname| SshHost { hostname });
+        .map(|hostname| SshHost {
+            hostname,
+            ssh_config: config.clone(),
+        });
 
     let options = build_skim_options(query, multi).unwrap();
     let output = Skim::run_items(options, hosts).unwrap();
-    print_skim_output(&output, &fields).await?;
+    print_skim_output(&output, &fields, config.as_deref()).await?;
     Ok(())
 }
 
@@ -123,12 +132,16 @@ fn build_skim_options(
         .build()
 }
 
-async fn print_host<D: Display + Into<String>>(host: D, fields: &[String]) -> Result<()> {
+async fn print_host<S: AsRef<str>>(
+    host: S,
+    fields: &[String],
+    custom_config: Option<&Path>,
+) -> Result<()> {
     if fields.is_empty() {
-        println!("{host}");
+        println!("{}", host.as_ref());
         return Ok(());
     }
-    let host_cfg = HostConfig::parse(&host.into()).await?;
+    let host_cfg = HostConfig::parse(host.as_ref(), custom_config).await?;
     for field in fields {
         let value_not_found = ["???".to_owned()];
         for value in host_cfg.get(field).unwrap_or(&value_not_found) {
@@ -138,32 +151,36 @@ async fn print_host<D: Display + Into<String>>(host: D, fields: &[String]) -> Re
     Ok(())
 }
 
-async fn print_skim_output(output: &SkimOutput, fields: &[String]) -> Result<()> {
+async fn print_skim_output(
+    output: &SkimOutput,
+    fields: &[String],
+    custom_config: Option<&Path>,
+) -> Result<()> {
     if output.is_abort {
         exit(1);
     }
 
     if output.selected_items.is_empty() {
-        return print_host(&output.query, fields).await;
+        return print_host(&output.query, fields, custom_config).await;
     }
 
     for host in &output.selected_items {
         let host = host.text();
-        print_host(host, fields).await?;
+        print_host(host, fields, custom_config).await?;
     }
     Ok(())
 }
 
-fn choose_config_path(
-    config: Option<std::path::PathBuf>,
-) -> Result<std::path::PathBuf, anyhow::Error> {
-    config.map_or_else(
-        #[allow(clippy::option_if_let_else, reason="if let else is clearer")]
-        || match dirs::home_dir() {
-            Some(p) => Ok(p.join(".ssh/config")),
-            None => Err(anyhow!(
+fn choose_config_path(config: Option<&Path>) -> Result<PathBuf> {
+    config.map_or_else(default_ssh_config_path, |path| Ok(path.to_owned()))
+}
+
+fn default_ssh_config_path() -> std::prelude::v1::Result<PathBuf, anyhow::Error> {
+    dirs::home_dir()
+        .map(|dir| dir.join(".ssh/config"))
+        .ok_or_else(|| {
+            anyhow!(
                 "No home directory found. Please use the flag --config and provide an ssh config file"
-            )),
-        }
-        , Ok)
+            )
+        })
 }

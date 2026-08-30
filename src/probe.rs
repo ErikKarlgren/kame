@@ -13,6 +13,7 @@ pub async fn probe(
         plain,
         json,
         no_probes,
+        config,
     }: ProbeArgs,
 ) -> String {
     if verbose {
@@ -34,8 +35,7 @@ pub async fn probe(
 
     let mut output = format!("{}\n", render_host(&host, plain));
 
-    let config = HostConfig::parse(&host).await;
-    match config {
+    match HostConfig::parse(&host, config.as_deref()).await {
         Ok(config) => {
             const SSH_FIELDS: [(&str, &str); 3] =
                 [("Hostname", "hostname"), ("User", "user"), ("Port", "port")];

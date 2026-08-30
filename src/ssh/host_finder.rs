@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::Path};
 
 use anyhow::Result;
 use tokio::{
@@ -10,7 +10,7 @@ use tokio::{
 };
 
 /// Parse hosts from a single file
-pub async fn parse_hosts(path: PathBuf) -> Result<Vec<String>> {
+pub async fn parse_hosts(path: &Path) -> Result<Vec<String>> {
     let mut hosts: HashSet<String> = HashSet::new();
     let file = File::open(&path).await?;
     extract_hosts(&mut hosts, BufReader::new(file)).await?;
