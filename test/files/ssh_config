@@ -1,0 +1,37 @@
+# A configuration exercising the shapes host_finder has to survive.
+   # An indented comment.
+
+Host alpha bravo
+    HostName example.com
+
+# Several patterns on one line are all aliases of the same declarations.
+Host server srv deployment-server
+    HostName 10.0.0.1
+
+# A matching negated pattern makes ssh ignore the whole entry, so neither of
+# these lines declares a usable alias.
+Host self !self
+Host prod-a prod-b !prod-*
+
+# A comma is an ordinary character: this is one pattern, not two.
+Host comma,list
+
+Host=charlie
+    User someone
+
+Host = delta
+    Port 2222
+
+  host   echo   !excluded   *.example.com   web?
+    Compression yes
+
+"Host" foxtrot
+    ForwardAgent no
+
+Host golf # a trailing comment
+Host "hotel india"
+Host quoted\ escape
+
+# Neither of these declares an alias, they only look like it.
+HostName not-a-host.example.com
+HostKeyAlias also-not-a-host
