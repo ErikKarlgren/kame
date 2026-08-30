@@ -7,8 +7,11 @@
 //! wildcards and system-wide defaults) ourselves, we ask `ssh` itself via
 //! `ssh -G <host>` and read back the fully resolved key/value pairs.
 
-use anyhow::{Result, anyhow};
-use std::{collections::HashMap, ffi::OsString, path::Path, vec::Vec};
+use anyhow::{Context, Result, anyhow, bail};
+use std::{
+    collections::HashMap, ffi::OsString, fmt::Debug, os::unix::process::ExitStatusExt, path::Path,
+    vec::Vec,
+};
 use tokio::process::Command;
 
 /// The effective SSH configuration for a single host, as reported by
@@ -41,25 +44,25 @@ impl HostConfig {
     /// Returns an error if `ssh` cannot be spawned (e.g. not on `PATH`), if it
     /// exits with a non-zero status, in which case its stderr is included in the
     /// message, or if the output format isn't the expected one.
-    pub async fn parse(hostname: &str, custom_config: Option<&Path>) -> Result<Self> {
-        let mut args: Vec<OsString> = vec!["-G".into(), hostname.into()];
-        if let Some(custom_config) = custom_config {
-            if !custom_config.is_file() {
-                return Err(anyhow!(
-                    "Error: path '{}' is not a regular file",
-                    custom_config.display()
-                ));
-            }
-            args.extend(["-F".into(), custom_config.into()]);
-        }
-        let output = Command::new("ssh").args(args).output().await?;
+    pub async fn from_host(hostname: &str, custom_config: Option<&Path>) -> Result<Self> {
+        let args = ssh_args(hostname, custom_config)?;
+        let output = Command::new("ssh")
+            .args(args)
+            .output()
+            .await
+            .context("failed to execute ssh")?;
 
         if !output.status.success() {
-            return Err(anyhow!(
-                "Command failed with exit code {}: {}",
-                output.status.code().unwrap_or(-1),
-                String::from_utf8_lossy(&output.stderr),
-            ));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            match output.status.code() {
+                Some(code) => bail!("ssh failed with exit code {code}: {stderr}"),
+
+                #[allow(clippy::option_if_let_else)]
+                None => match output.status.signal() {
+                    Some(signal) => bail!("ssh interrupted by signal {signal}: {stderr}"),
+                    None => bail!("ssh aborted execution for an unknown reason: {stderr}"),
+                },
+            };
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
         let var_map = parse_stdout(&stdout)?;
@@ -74,6 +77,23 @@ impl HostConfig {
     pub fn get(&self, key: &str) -> Option<&[String]> {
         self.var_map.get(key).map(Vec::as_slice)
     }
+}
+
+/// Build the command arguments for `ssh` to parse info about the given hostname.
+fn ssh_args(hostname: &str, custom_config: Option<&Path>) -> Result<Vec<OsString>> {
+    let mut args = vec!["-G".into(), hostname.into()];
+
+    if let Some(custom_config) = custom_config {
+        let metadata = custom_config
+            .metadata()
+            .map_err(|err| anyhow!("cannot access path '{}': {}", custom_config.display(), err))?;
+
+        if !metadata.is_file() {
+            bail!("path '{}' is not a regular file", custom_config.display());
+        }
+        args.extend(["-F".into(), custom_config.into()]);
+    }
+    Ok(args)
 }
 
 /// Parses `ssh -G` output into a map from option name to its values.
@@ -95,3 +115,6 @@ fn parse_stdout(stdout: &str) -> Result<HashMap<String, Vec<String>>> {
     }
     Ok(map)
 }
+
+#[cfg(test)]
+mod tests {}

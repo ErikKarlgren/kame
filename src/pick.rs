@@ -141,7 +141,7 @@ async fn print_host<S: AsRef<str>>(
         println!("{}", host.as_ref());
         return Ok(());
     }
-    let host_cfg = HostConfig::parse(host.as_ref(), custom_config).await?;
+    let host_cfg = HostConfig::from_host(host.as_ref(), custom_config).await?;
     for field in fields {
         let value_not_found = ["???".to_owned()];
         for value in host_cfg.get(field).unwrap_or(&value_not_found) {

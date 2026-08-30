@@ -35,7 +35,7 @@ pub async fn probe(
 
     let mut output = format!("{}\n", render_host(&host, plain));
 
-    match HostConfig::parse(&host, config.as_deref()).await {
+    match HostConfig::from_host(&host, config.as_deref()).await {
         Ok(config) => {
             const SSH_FIELDS: [(&str, &str); 3] =
                 [("Hostname", "hostname"), ("User", "user"), ("Port", "port")];
