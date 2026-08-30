@@ -9,8 +9,7 @@
 
 use anyhow::{Context, Result, anyhow, bail};
 use std::{
-    collections::HashMap, ffi::OsString, fmt::Debug, os::unix::process::ExitStatusExt, path::Path,
-    vec::Vec,
+    collections::HashMap, ffi::OsString, os::unix::process::ExitStatusExt, path::Path, vec::Vec,
 };
 use tokio::process::Command;
 
@@ -117,4 +116,79 @@ fn parse_stdout(stdout: &str) -> Result<HashMap<String, Vec<String>>> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    /// Any regular file will do: [`ssh_args`] only looks at the path's
+    /// metadata, it never reads what is inside.
+    const A_REAL_FILE: &str = "test/files/ssh_config";
+
+    #[test]
+    fn without_a_custom_config_ssh_is_only_asked_about_the_host() {
+        let args = ssh_args("alpha", None).expect("there is no path to check");
+        assert_eq!(args, ["-G", "alpha"]);
+    }
+
+    #[test]
+    fn a_custom_config_is_passed_on_as_dash_f() {
+        // The whole point of the flag: without `-F`, `ssh` resolves the alias
+        // against ~/.ssh/config instead of the file the user asked for, which
+        // is wrong silently rather than loudly.
+        let args = ssh_args("alpha", Some(Path::new(A_REAL_FILE))).expect("the file exists");
+        assert_eq!(args, ["-G", "alpha", "-F", A_REAL_FILE]);
+    }
+
+    #[test]
+    fn a_custom_config_that_is_not_a_regular_file_is_rejected() {
+        // `ssh -F` ignores a directory without complaining, which looks exactly
+        // like `-F` having had no effect, so it is refused up front instead.
+        for path in ["test/files", "test/files/no-such-config"] {
+            assert!(
+                ssh_args("alpha", Some(Path::new(path))).is_err(),
+                "{path} should not be accepted as a config file"
+            );
+        }
+    }
+
+    /// A trimmed-down `ssh -G` output, in the shape OpenSSH prints it: one
+    /// `<name> <value>` pair per line, names already lowercased.
+    const SSH_G_OUTPUT: &str = "\
+host alpha
+hostname alpha.example.com
+port 22
+identityfile ~/.ssh/id_ed25519
+identityfile ~/.ssh/id_rsa
+proxycommand ssh -W %h:%p bastion
+";
+
+    /// Parses `stdout` the way [`HostConfig::from_host`] does.
+    fn parse(stdout: &str) -> HashMap<String, Vec<String>> {
+        parse_stdout(stdout).expect("expected the output to be parsed")
+    }
+
+    #[test]
+    fn a_name_and_its_value_are_split_at_the_first_space() {
+        let map = parse(SSH_G_OUTPUT);
+        assert_eq!(map["hostname"], ["alpha.example.com"]);
+        assert_eq!(map["port"], ["22"]);
+        // Splitting at every space would truncate this one.
+        assert_eq!(map["proxycommand"], ["ssh -W %h:%p bastion"]);
+    }
+
+    #[test]
+    fn a_repeated_name_keeps_every_value_in_order() {
+        // `identityfile` is the usual case, and `HostConfig::get` hands the
+        // whole list to the caller, so the order `ssh` printed has to survive.
+        assert_eq!(
+            parse(SSH_G_OUTPUT)["identityfile"],
+            ["~/.ssh/id_ed25519", "~/.ssh/id_rsa"]
+        );
+    }
+
+    #[test]
+    fn a_line_without_a_space_is_an_error() {
+        // `ssh -G` never prints a name without a value, so such a line means
+        // this is not `ssh -G` output and no value can be trusted.
+        assert!(parse_stdout("hostname alpha.example.com\nnonsense\n").is_err());
+    }
+}

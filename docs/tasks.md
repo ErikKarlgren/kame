@@ -30,12 +30,6 @@ Pending tasks to implement. I will be updating this as I need to.
       updating either way
 
 ## Resolving fields (`ssh -G`)
-- [ ] Pass `-F <config>` through to `ssh -G`
-    - `HostConfig::parse` (`host_config.rs:42`) always runs bare `ssh -G <host>`
-    - `kame pick -F ./other.conf -i` lists aliases from `other.conf` but
-      resolves their fields against `~/.ssh/config`: silently wrong values, or
-      `???` for aliases that do not exist there
-    - Affects the preview pane and `-L` too, where `-F` is ignored entirely
 - [ ] Show the offending line in the parse error
     - `host_config.rs:80` renders `could not parse line "3"` — it quotes the
       line *number* rather than the text
