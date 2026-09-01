@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
+use clap::builder::styling::AnsiColor;
 use skim::{
     ItemPreview, PreviewContext, Skim, SkimOutput,
     prelude::{SkimItem, SkimOptions, SkimOptionsBuilder, options::SkimOptionsBuilderError},
@@ -107,6 +108,19 @@ fn build_skim_options(
     query: Option<String>,
     multi: bool,
 ) -> Result<SkimOptions, SkimOptionsBuilderError> {
+    use AnsiColor::*;
+    let skim_colors = format!(
+        "16,current_bg:{},current:{}:bold,matched:{},current_match:{},current_match_bg:{},border:{},prompt:{},header:{},selected:{}",
+        Green as u8,
+        Black as u8,
+        Red as u8,
+        BrightRed as u8,
+        Green as u8,
+        BrightBlack as u8,
+        Yellow as u8,
+        Yellow as u8,
+        Yellow as u8,
+    );
     SkimOptionsBuilder::default()
         .multi(multi)
         .query(query.unwrap_or_default())
@@ -121,14 +135,15 @@ fn build_skim_options(
         .selector_icon("🐢")
         .multi_select_icon("🐚")
         .highlight_line(true)
-        .color(
-            "16,current_bg:2,current:0:bold,matched:1,current_match:9,current_match_bg:2,border:8,prompt:3,header:3,selected:3",
-        )
+        .color(skim_colors)
         .cycle(true)
         .show_cmd_error(true)
         .border(BorderType::Rounded)
         .border_no_collapse(true)
-        .info(Info{ display: InfoDisplay::Hidden, separator: None })
+        .info(Info {
+            display: InfoDisplay::Hidden,
+            separator: None,
+        })
         .build()
 }
 
