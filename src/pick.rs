@@ -110,15 +110,14 @@ fn build_skim_options(
 ) -> Result<SkimOptions, SkimOptionsBuilderError> {
     use AnsiColor::*;
     let skim_colors = format!(
-        "16,current_bg:{},current:{}:bold,matched:{},current_match:{},current_match_bg:{},border:{},prompt:{},header:{},selected:{}",
-        Green as u8,
+        "16,current:{}:bold,current_bg:{},matched:{},current_match:{}:bold:underline,border:{},prompt:{},header:{},selected:{}",
         Black as u8,
-        Red as u8,
-        BrightRed as u8,
+        Yellow as u8,
         Green as u8,
+        Blue as u8,
         BrightBlack as u8,
-        Yellow as u8,
-        Yellow as u8,
+        Green as u8,
+        Green as u8,
         Yellow as u8,
     );
     SkimOptionsBuilder::default()
