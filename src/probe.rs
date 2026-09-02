@@ -92,18 +92,40 @@ fn render_field(
     property: &str,
     intensity: LabelIntensity,
 ) {
+    let label = prop_to_pretty_alias(property).unwrap_or(property);
+    match intensity {
+        LabelIntensity::Normal => {
+            _ = write!(output, "{} ", label.blue());
+        }
+        LabelIntensity::Bright => {
+            _ = write!(output, "{} ", label.bright_cyan().bold());
+        }
+    };
+
     let value_not_found = ["???".to_owned()];
     let values = config.get(property).unwrap_or(&value_not_found);
-    let label = prop_to_pretty_alias(property).unwrap_or(property);
-    let values: String = if values.len() == 1 {
-        values.first().unwrap().clone()
+    if values.len() == 1 {
+        let val = values.first().unwrap();
+        match intensity {
+            LabelIntensity::Normal => {
+                _ = writeln!(output, "{}", val);
+            }
+            LabelIntensity::Bright => {
+                _ = writeln!(output, "{}", val.bold());
+            }
+        }
     } else {
-        let markdown_list: String = values.iter().map(|v| format!(" {v}\n")).collect();
-        format!("\n{markdown_list}")
+        let mut list = "\n".to_owned();
+        for v in values {
+            _ = writeln!(&mut list, " {v}");
+        }
+        match intensity {
+            LabelIntensity::Normal => {
+                _ = writeln!(output, "{}", list);
+            }
+            LabelIntensity::Bright => {
+                _ = writeln!(output, "{}", list.bold());
+            }
+        };
     };
-    let colored_label = match intensity {
-        LabelIntensity::Normal => label.blue(),
-        LabelIntensity::Bright => label.bright_cyan().bold(),
-    };
-    _ = writeln!(output, "{colored_label} {values}");
 }
