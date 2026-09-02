@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Subcommand::Pick(pick_args) => pick(pick_args).await?,
         Subcommand::Probe(probe_args) => {
-            let to_print = probe(probe_args).await;
+            let to_print = probe(probe_args, None).await;
             println!("{to_print}");
         }
     }

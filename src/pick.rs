@@ -5,6 +5,7 @@ use std::{
     borrow::Cow,
     path::{Path, PathBuf},
     process::exit,
+    sync::Arc,
 };
 
 use anyhow::{Result, anyhow};
@@ -29,6 +30,7 @@ use crate::{
 struct SshHost {
     hostname: String,
     ssh_config: Option<PathBuf>,
+    props_to_highlight: Arc<Vec<String>>,
 }
 
 impl SkimItem for SshHost {
@@ -38,14 +40,17 @@ impl SkimItem for SshHost {
     fn preview(&self, _ctx: PreviewContext<'_>) -> ItemPreview {
         let text = tokio::task::block_in_place(|| {
             Handle::current().block_on(async {
-                probe(ProbeArgs {
-                    host: self.hostname.clone(),
-                    verbose: false,
-                    plain: false,
-                    json: false,
-                    no_probes: false,
-                    config: self.ssh_config.clone(),
-                })
+                probe(
+                    ProbeArgs {
+                        host: self.hostname.clone(),
+                        verbose: false,
+                        plain: false,
+                        json: false,
+                        no_probes: false,
+                        config: self.ssh_config.clone(),
+                    },
+                    Some(&self.props_to_highlight),
+                )
                 .await
             })
         });
@@ -89,6 +94,7 @@ pub async fn pick(
         exit(1);
     }
 
+    let fields = Arc::new(fields);
     let path = choose_config_path(config.as_deref())?;
     let hosts = parse_hosts(&path)
         .await?
@@ -96,6 +102,7 @@ pub async fn pick(
         .map(|hostname| SshHost {
             hostname,
             ssh_config: config.clone(),
+            props_to_highlight: fields.clone(),
         });
 
     let options = build_skim_options(query, multi).unwrap();

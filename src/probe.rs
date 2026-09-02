@@ -6,6 +6,7 @@ use std::fmt::Write;
 use crate::{cli::ProbeArgs, ssh::host_config::HostConfig};
 use colored::{Colorize, control};
 
+#[derive(Copy, Clone, Debug)]
 enum LabelIntensity {
     Normal,
     Bright,
@@ -20,6 +21,8 @@ pub async fn probe(
         no_probes,
         config,
     }: ProbeArgs,
+    // 99% of the time <3 elements, so no need for a HashSet
+    props_to_highlight: Option<&[String]>,
 ) -> String {
     if verbose {
         todo!("verbose not implemented")
@@ -44,14 +47,15 @@ pub async fn probe(
         Ok(config) => {
             const SSH_FIELDS: [(&str, &str); 3] =
                 [("Hostname", "hostname"), ("User", "user"), ("Port", "port")];
-            for (pretty_alias, setting) in SSH_FIELDS {
-                render_field(
-                    &mut output,
-                    &config,
-                    pretty_alias,
-                    setting,
-                    LabelIntensity::Normal,
-                );
+            for (pretty_alias, property) in SSH_FIELDS {
+                let intensity = if let Some(props) = props_to_highlight
+                    && props.iter().any(|p| p == property)
+                {
+                    LabelIntensity::Bright
+                } else {
+                    LabelIntensity::Normal
+                };
+                render_field(&mut output, &config, pretty_alias, property, intensity);
             }
         }
         Err(err) => {
