@@ -24,7 +24,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use clap::builder::styling::AnsiColor::{Green, Yellow};
+use clap::builder::styling::AnsiColor::{Blue, Green};
 use clap::builder::styling::Style;
 use clap::builder::{EnumValueParser, Styles, ValueParser};
 use clap::{Arg, ArgAction, ArgMatches, ColorChoice, Command, Error};
@@ -174,12 +174,12 @@ where
 /// meaning a turtle palette shouldn't override.
 fn turtle_styles() -> Styles {
     let green = Style::new().fg_color(Some(Green.into())).bold();
-    let yellow = Style::new().fg_color(Some(Yellow.into()));
+    let blue = Style::new().fg_color(Some(Blue.into()));
     Styles::styled()
         .header(green)
         .usage(green)
-        .literal(yellow)
-        .placeholder(yellow)
+        .literal(blue)
+        .placeholder(blue)
 }
 
 /// Finds an explicit `--color <WHEN>` in the raw arguments.
