@@ -84,7 +84,8 @@ fn render_field(
     let values: String = if values.len() == 1 {
         values.first().unwrap().clone()
     } else {
-        format!("{values:?}")
+        let markdown_list: String = values.iter().map(|v| format!(" {v}\n")).collect();
+        format!("\n{markdown_list}")
     };
     let colored_label = match intensity {
         LabelIntensity::Normal => label.blue(),
