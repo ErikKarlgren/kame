@@ -55,9 +55,9 @@ impl SkimItem for SshHost {
 
 const PREVIEW_LAYOUT: PreviewLayout = PreviewLayout {
     direction: skim::tui::Direction::Left,
-    size: skim::tui::Size::Fixed(40),
+    size: skim::tui::Size::Percent(40),
     hidden: false,
-    wrap: false,
+    wrap: true,
     pty: false,
     offset: None,
 };
@@ -123,7 +123,8 @@ fn build_skim_options(
     SkimOptionsBuilder::default()
         .multi(multi)
         .query(query.unwrap_or_default())
-        .height("16")
+        .height("40%")
+        .min_height("16")
         .preview("") // needed to enable the preview pane
         .preview_window(PREVIEW_LAYOUT)
         .header(if multi {
