@@ -6,6 +6,11 @@ use std::fmt::Write;
 use crate::{cli::ProbeArgs, ssh::host_config::HostConfig};
 use colored::{Colorize, control};
 
+enum LabelIntensity {
+    Normal,
+    Bright,
+}
+
 pub async fn probe(
     ProbeArgs {
         host,
@@ -40,7 +45,13 @@ pub async fn probe(
             const SSH_FIELDS: [(&str, &str); 3] =
                 [("Hostname", "hostname"), ("User", "user"), ("Port", "port")];
             for (pretty_alias, setting) in SSH_FIELDS {
-                render_field(&mut output, &config, pretty_alias, setting);
+                render_field(
+                    &mut output,
+                    &config,
+                    pretty_alias,
+                    setting,
+                    LabelIntensity::Normal,
+                );
             }
         }
         Err(err) => {
@@ -61,7 +72,13 @@ fn render_host(host: &str, plain: bool) -> String {
     line
 }
 
-fn render_field(output: &mut String, config: &HostConfig, pretty_alias: &str, setting: &str) {
+fn render_field(
+    output: &mut String,
+    config: &HostConfig,
+    label: &str,
+    setting: &str,
+    intensity: LabelIntensity,
+) {
     let value_not_found = ["???".to_owned()];
     let values = config.get(setting).unwrap_or(&value_not_found);
     let values: String = if values.len() == 1 {
@@ -69,5 +86,9 @@ fn render_field(output: &mut String, config: &HostConfig, pretty_alias: &str, se
     } else {
         format!("{values:?}")
     };
-    _ = writeln!(output, "{} {values}", pretty_alias.yellow());
+    let colored_label = match intensity {
+        LabelIntensity::Normal => label.blue(),
+        LabelIntensity::Bright => label.bright_cyan().bold(),
+    };
+    _ = writeln!(output, "{colored_label} {values}");
 }
