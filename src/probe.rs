@@ -3,7 +3,10 @@
 
 use std::fmt::Write;
 
-use crate::{cli::ProbeArgs, ssh::host_config::HostConfig};
+use crate::{
+    cli::ProbeArgs,
+    ssh::{host_config::HostConfig, host_properties::prop_to_pretty_alias},
+};
 use colored::{Colorize, control};
 
 #[derive(Copy, Clone, Debug)]
@@ -45,9 +48,16 @@ pub async fn probe(
 
     match HostConfig::from_host(&host, config.as_deref()).await {
         Ok(config) => {
-            const SSH_FIELDS: [(&str, &str); 3] =
-                [("Hostname", "hostname"), ("User", "user"), ("Port", "port")];
-            for (pretty_alias, property) in SSH_FIELDS {
+            const SSH_FIELDS: [&'static str; 3] = ["hostname", "user", "port"];
+            let props_to_show = SSH_FIELDS
+                .into_iter()
+                .chain(props_to_highlight.iter().flat_map(|&props| {
+                    props
+                        .iter()
+                        .filter(|p| !SSH_FIELDS.contains(&p.as_str()))
+                        .map(|p| p.as_str())
+                }));
+            for property in props_to_show {
                 let intensity = if let Some(props) = props_to_highlight
                     && props.iter().any(|p| p == property)
                 {
@@ -55,7 +65,7 @@ pub async fn probe(
                 } else {
                     LabelIntensity::Normal
                 };
-                render_field(&mut output, &config, pretty_alias, property, intensity);
+                render_field(&mut output, &config, property, intensity);
             }
         }
         Err(err) => {
@@ -79,12 +89,12 @@ fn render_host(host: &str, plain: bool) -> String {
 fn render_field(
     output: &mut String,
     config: &HostConfig,
-    label: &str,
-    setting: &str,
+    property: &str,
     intensity: LabelIntensity,
 ) {
     let value_not_found = ["???".to_owned()];
-    let values = config.get(setting).unwrap_or(&value_not_found);
+    let values = config.get(property).unwrap_or(&value_not_found);
+    let label = prop_to_pretty_alias(property).unwrap_or(property);
     let values: String = if values.len() == 1 {
         values.first().unwrap().clone()
     } else {

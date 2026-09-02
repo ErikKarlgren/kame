@@ -3,3 +3,4 @@
 
 pub mod host_config;
 pub mod host_finder;
+pub mod host_properties;
