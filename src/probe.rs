@@ -93,7 +93,13 @@ fn render_field(
     property: &str,
     intensity: LabelIntensity,
 ) {
-    let label = prop_to_pretty_alias(property).unwrap_or(property);
+    let mut label = String::new();
+    _ = write!(
+        &mut label,
+        "{}:",
+        prop_to_pretty_alias(property).unwrap_or(property)
+    );
+
     match intensity {
         LabelIntensity::Normal => {
             _ = write!(output, "{} ", label.blue());
