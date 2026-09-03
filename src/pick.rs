@@ -116,7 +116,7 @@ fn build_skim_options(
     query: Option<String>,
     multi: bool,
 ) -> Result<SkimOptions, SkimOptionsBuilderError> {
-    use AnsiColor::*;
+    use AnsiColor::{Black, Yellow, Green, Blue, BrightBlack};
     let skim_colors = format!(
         "16,current:{}:bold,current_bg:{},matched:{},current_match:{}:bold:underline,border:{},prompt:{},header:{},selected:{}",
         Black as u8,
