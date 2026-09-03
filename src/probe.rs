@@ -48,14 +48,14 @@ pub async fn probe(
 
     match HostConfig::from_host(&host, config.as_deref()).await {
         Ok(config) => {
-            const SSH_FIELDS: [&'static str; 3] = ["hostname", "user", "port"];
+            const SSH_FIELDS: [&str; 3] = ["hostname", "user", "port"];
             let props_to_show = SSH_FIELDS
                 .into_iter()
                 .chain(props_to_highlight.iter().flat_map(|&props| {
                     props
                         .iter()
                         .filter(|p| !SSH_FIELDS.contains(&p.as_str()))
-                        .map(|p| p.as_str())
+                        .map(std::string::String::as_str)
                 }));
             for property in props_to_show {
                 let intensity = if let Some(props) = props_to_highlight
@@ -100,7 +100,7 @@ fn render_field(
         LabelIntensity::Bright => {
             _ = write!(output, "{} ", label.bright_cyan().bold());
         }
-    };
+    }
 
     let value_not_found = ["???".to_owned()];
     let values = config.get(property).unwrap_or(&value_not_found);
@@ -108,7 +108,7 @@ fn render_field(
         let val = values.first().unwrap();
         match intensity {
             LabelIntensity::Normal => {
-                _ = writeln!(output, "{}", val);
+                _ = writeln!(output, "{val}");
             }
             LabelIntensity::Bright => {
                 _ = writeln!(output, "{}", val.bold());
@@ -121,11 +121,11 @@ fn render_field(
         }
         match intensity {
             LabelIntensity::Normal => {
-                _ = writeln!(output, "{}", list);
+                _ = writeln!(output, "{list}");
             }
             LabelIntensity::Bright => {
                 _ = writeln!(output, "{}", list.bold());
             }
-        };
-    };
+        }
+    }
 }
