@@ -107,9 +107,13 @@ fn ssh_args(hostname: &str, custom_config: Option<&Path>) -> Result<Vec<OsString
 fn parse_stdout(stdout: &str) -> Result<HashMap<String, Vec<String>>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     for (num, line) in stdout.lines().enumerate() {
-        let (key, val) = line
-            .split_once(' ')
-            .ok_or_else(|| anyhow!("Unexpected format: could not parse line \"{}\"", num + 1))?;
+        let (key, val) = line.split_once(' ').ok_or_else(|| {
+            anyhow!(
+                "Unexpected format: could not parse line {}: \"{}\"",
+                num + 1,
+                line
+            )
+        })?;
         map.entry(key.to_owned()).or_default().push(val.to_owned());
     }
     Ok(map)

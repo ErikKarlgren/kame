@@ -29,11 +29,6 @@ Pending tasks to implement. I will be updating this as I need to.
     - `REALISTIC_CONFIG` already pins the current behaviour; the tests need
       updating either way
 
-## Resolving fields (`ssh -G`)
-- [ ] Show the offending line in the parse error
-    - `host_config.rs:80` renders `could not parse line "3"` — it quotes the
-      line *number* rather than the text
-
 ## Error handling and exit codes
 - [ ] Replace the `todo!()`s on documented flags with a clean error
     - `probe -v/-p/--json/-N` (`probe.rs:18-29`) and `pick --json/--preview-cmd`
