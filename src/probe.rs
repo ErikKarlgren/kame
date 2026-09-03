@@ -79,7 +79,7 @@ pub async fn probe(
 }
 
 fn render_host(host: &str, plain: bool) -> String {
-    let mut line = format!("모{host}");
+    let mut line = format!("📡 {host}");
     if !plain {
         line = line.green().bold().to_string();
     }

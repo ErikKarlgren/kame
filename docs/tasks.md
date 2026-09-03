@@ -95,9 +95,6 @@ Pending tasks to implement. I will be updating this as I need to.
       `["~/.ssh/id_rsa", "~/.ssh/id_ed25519"]` (`probe.rs:70`)
     - `identityfile` returns 5 values on a stock system, so this is reachable
     - Pick one and make the docs match
-- [ ] Check the host glyph in `probe.rs:57`
-    - It is `모` (U+BAA8, a Korean syllable), not a turtle or a box-drawing
-      character; `pick` uses `🐢`/`🐚`, so this looks unintentional
 
 ## pick subcommand
 - [ ] Ensure the only way to print to stdout is for printing skim's output
