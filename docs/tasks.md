@@ -87,15 +87,6 @@ Pending tasks to implement. I will be updating this as I need to.
     - `plain` is `todo!()`'d at `probe.rs:21`, so the `if !plain` guard at
       `probe.rs:31` and the `plain` parameter of `render_host` are unreachable
 
-## Output formatting
-- [ ] Settle on one representation for multi-value fields
-    - The `--field` help promises values "joined with commas"
-    - `print_host` prints one per line (`pick.rs:135`)
-    - `render_field` prints Rust debug syntax
-      `["~/.ssh/id_rsa", "~/.ssh/id_ed25519"]` (`probe.rs:70`)
-    - `identityfile` returns 5 values on a stock system, so this is reachable
-    - Pick one and make the docs match
-
 ## pick subcommand
 - [ ] Ensure the only way to print to stdout is for printing skim's output
 - [ ] Cache preview results

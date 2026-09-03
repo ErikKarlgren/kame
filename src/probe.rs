@@ -8,6 +8,7 @@ use crate::{
     ssh::{host_config::HostConfig, host_properties::prop_to_pretty_alias},
 };
 use colored::{Colorize, control};
+use itertools::Itertools;
 
 #[derive(Copy, Clone, Debug)]
 enum LabelIntensity {
@@ -104,28 +105,18 @@ fn render_field(
 
     let value_not_found = ["???".to_owned()];
     let values = config.get(property).unwrap_or(&value_not_found);
-    if values.len() == 1 {
-        let val = values.first().unwrap();
-        match intensity {
-            LabelIntensity::Normal => {
-                _ = writeln!(output, "{val}");
-            }
-            LabelIntensity::Bright => {
-                _ = writeln!(output, "{}", val.bold());
-            }
+    let mut plain_output = String::new();
+
+    #[allow(unstable_name_collisions)]
+    for v in values.iter().map(String::as_str).intersperse(",") {
+        _ = write!(&mut plain_output, "{v}");
+    }
+    match intensity {
+        LabelIntensity::Normal => {
+            _ = writeln!(output, "{plain_output}");
         }
-    } else {
-        let mut list = "\n".to_owned();
-        for v in values {
-            _ = writeln!(&mut list, " {v}");
-        }
-        match intensity {
-            LabelIntensity::Normal => {
-                _ = writeln!(output, "{list}");
-            }
-            LabelIntensity::Bright => {
-                _ = writeln!(output, "{}", list.bold());
-            }
+        LabelIntensity::Bright => {
+            _ = writeln!(output, "{}", plain_output.bold());
         }
     }
 }

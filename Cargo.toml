@@ -16,3 +16,4 @@ dirs = { version = "6.0.0", default-features = false }
 terminal_size = { version = "0.4.4", default-features = false }
 tokio = { version = "1.53.1", default-features = false, features = ["fs", "io-util", "macros", "process", "rt-multi-thread"] }
 colored = "3.1.1"
+itertools = "0.14.0"

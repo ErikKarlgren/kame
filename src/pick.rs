@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use clap::builder::styling::AnsiColor;
+use itertools::Itertools;
 use skim::{
     ItemPreview, PreviewContext, Skim, SkimOutput,
     prelude::{SkimItem, SkimOptions, SkimOptionsBuilder, options::SkimOptionsBuilderError},
@@ -163,13 +164,19 @@ async fn print_host<S: AsRef<str>>(
         println!("{}", host.as_ref());
         return Ok(());
     }
+
     let host_cfg = HostConfig::from_host(host.as_ref(), custom_config).await?;
     for field in fields {
         let value_not_found = ["???".to_owned()];
-        for value in host_cfg.get(field).unwrap_or(&value_not_found) {
-            println!("{value}");
+        let values = host_cfg.get(field).unwrap_or(&value_not_found);
+
+        #[allow(unstable_name_collisions)]
+        for v in values.iter().map(String::as_str).intersperse(",") {
+            () = print!("{v}");
         }
+        print!(" ");
     }
+    println!();
     Ok(())
 }
 
