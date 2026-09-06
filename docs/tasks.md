@@ -40,7 +40,6 @@ Pending tasks to implement. I will be updating this as I need to.
     - `pick.rs:92` unwraps `Skim::run_items`; `kame pick < /dev/null` panics
       with `No such device or address (os error 6)` and exits 101
     - Want a one-line "kame pick needs an interactive terminal" on stderr
-    - Same for `build_skim_options(...).unwrap()` at `pick.rs:91`
 - [ ] Report `probe` failures on stderr with a non-zero exit
     - `probe.rs:46-51` writes `Error: Could not parse information for host: …`
       into the returned `String`, which `main.rs:32` prints to stdout

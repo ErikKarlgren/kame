@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use clap::builder::styling::AnsiColor;
 use itertools::Itertools;
 use skim::{
@@ -106,8 +106,10 @@ pub async fn pick(
             props_to_highlight: fields.clone(),
         });
 
-    let options = build_skim_options(query, multi).unwrap();
-    let output = Skim::run_items(options, hosts).unwrap();
+    let options = build_skim_options(query, multi)
+        .context("Could not build the UI (is an interactive terminal available?)")?;
+    let output = Skim::run_items(options, hosts)
+        .map_err(|err| anyhow!("Unexpected error while sending SSH aliases to UI: {err}"))?;
     print_skim_output(&output, &fields, config.as_deref()).await?;
     Ok(())
 }
