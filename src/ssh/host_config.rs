@@ -107,16 +107,22 @@ fn ssh_args(hostname: &str, custom_config: Option<&Path>) -> Result<Vec<OsString
 fn parse_stdout(stdout: &str) -> Result<HashMap<String, Vec<String>>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     for (num, line) in stdout.lines().enumerate() {
-        let (key, val) = line.split_once(' ').ok_or_else(|| {
-            anyhow!(
-                "Unexpected format: could not parse line {}: \"{}\"",
-                num + 1,
-                line
-            )
-        })?;
+        let (key, val) = line
+            .split_once(' ')
+            .ok_or_else(|| unexpected_format_error(num, line))?;
         map.entry(key.to_owned()).or_default().push(val.to_owned());
     }
     Ok(map)
+}
+
+fn unexpected_format_error(num: usize, line: &str) -> anyhow::Error {
+    #[allow(clippy::option_if_let_else, reason = "easier to understand")]
+    let line_num = match num.checked_add(1) {
+        Some(n) => n.to_string(),
+        None => format!(">{}", usize::MAX),
+    };
+
+    anyhow!("Unexpected format: could not parse line {line_num}: \"{line}\"")
 }
 
 #[cfg(test)]
