@@ -28,6 +28,7 @@ const COPYRIGHT_TAG: &str = "// SPDX-FileCopyrightText:";
 const LICENSE_TAG: &str = "// SPDX-License-Identifier:";
 
 fn main() {
+    #[expect(clippy::expect_used, reason = "cargo always sets CARGO_MANIFEST_DIR")]
     let root = std::env::var("CARGO_MANIFEST_DIR").expect("cargo always sets CARGO_MANIFEST_DIR");
     let root = Path::new(&root);
 

@@ -21,6 +21,12 @@
 //!   are dropped, keeping the first position.
 //! - `-L/--literal` implies `hostname` when no other field was requested.
 
+#![expect(
+    clippy::arithmetic_side_effects,
+    reason = "We are doing arithmetic with terminal dimensions here, so an integer
+             overflow should not happen when the program is used interactively. That
+             is, unless the user is actively seeking to break this program"
+)]
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -525,6 +531,7 @@ fn pick_examples(width: usize) -> String {
     for (command, description) in PICK_EXAMPLES {
         let mut lines = wrap_words(description, description_width).into_iter();
 
+        #[expect(clippy::expect_used, reason = "writing to a \"small\" String cannot fail")]
         if stacked {
             write!(examples, "\n{:EXAMPLE_INDENT$}{literal}{command}{literal:#}", "")
         } else {
@@ -538,12 +545,16 @@ fn pick_examples(width: usize) -> String {
                 "", "", ""
             )
         }
-        .expect("writing to a String cannot fail");
+        .expect("writing to a \"small\" String cannot fail");
 
         // Whatever is left hangs under the description column.
         for line in lines {
+            #[expect(
+                clippy::expect_used,
+                reason = "writing to a \"small\" String cannot fail"
+            )]
             write!(examples, "\n{:description_column$}{line}", "")
-                .expect("writing to a String cannot fail");
+                .expect("writing to a \"small\" String cannot fail");
         }
     }
     examples

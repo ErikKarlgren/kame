@@ -4,11 +4,10 @@
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
-    process::exit,
     sync::Arc,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::builder::styling::AnsiColor;
 use itertools::Itertools;
 use skim::{
@@ -41,18 +40,20 @@ impl SkimItem for SshHost {
     fn preview(&self, _ctx: PreviewContext<'_>) -> ItemPreview {
         let text = tokio::task::block_in_place(|| {
             Handle::current().block_on(async {
-                probe(
-                    ProbeArgs {
-                        host: self.hostname.clone(),
-                        verbose: false,
-                        plain: false,
-                        json: false,
-                        no_probes: false,
-                        config: self.ssh_config.clone(),
-                    },
-                    Some(&self.props_to_highlight),
-                )
-                .await
+                let probe_args = ProbeArgs {
+                    host: self.hostname.clone(),
+                    verbose: false,
+                    plain: false,
+                    json: false,
+                    no_probes: false,
+                    config: self.ssh_config.clone(),
+                };
+
+                probe(probe_args, Some(&self.props_to_highlight))
+                    .await
+                    .unwrap_or_else(|err| {
+                        format!("Error: Could not preview '{}': {err}", self.hostname)
+                    })
             })
         });
         ItemPreview::Text(text)
@@ -81,18 +82,17 @@ pub async fn pick(
     }: PickArgs,
 ) -> Result<()> {
     if json {
-        todo!("--json not implemented yet");
+        bail!("--json not implemented yet");
     }
     if preview_cmd.is_some() {
-        todo!("--preview-cmd not implemented yet");
+        bail!("--preview-cmd not implemented yet");
     }
 
     if literal {
         if let Some(host) = query {
             return print_host(host, &fields, config.as_deref()).await;
         }
-        eprintln!("No host was given");
-        exit(1);
+        bail!("No host was given");
     }
 
     let fields = Arc::new(fields);
@@ -104,10 +104,33 @@ pub async fn pick(
             hostname,
             ssh_config: config.clone(),
             props_to_highlight: fields.clone(),
-        });
+        })
+        .collect_vec();
 
-    let options = build_skim_options(query, multi).unwrap();
-    let output = Skim::run_items(options, hosts).unwrap();
+    if hosts.is_empty() {
+        bail!(
+            "No SSH aliases were found in '{}'. You need entries with the following format:
+
+    Host alias
+
+For example:
+
+    Host server1
+    User admin
+    Hostname server1.mycloud.net
+
+This will appear as `server1` inside `kame pick`. The fields User and Hostname mean you can replace `ssh admin@server1.mycloud.net` with `ssh server1`, or even better, as `ssh $(kame pick)`
+
+For more advanced options, please search online how to further configure SSH
+",
+            path.display()
+        );
+    }
+
+    let options = build_skim_options(query, multi)
+        .context("Could not build the UI (is an interactive terminal available?)")?;
+    let output = Skim::run_items(options, hosts)
+        .map_err(|err| anyhow!("Unexpected error while sending SSH aliases to UI: {err}"))?;
     print_skim_output(&output, &fields, config.as_deref()).await?;
     Ok(())
 }
@@ -116,7 +139,11 @@ fn build_skim_options(
     query: Option<String>,
     multi: bool,
 ) -> Result<SkimOptions, SkimOptionsBuilderError> {
-    use AnsiColor::{Black, Yellow, Green, Blue, BrightBlack};
+    use AnsiColor::{Black, Blue, BrightBlack, Green, Yellow};
+    #[expect(
+        clippy::as_conversions,
+        reason = "casting enum with repr(u8) to u8 is lossless and safe"
+    )]
     let skim_colors = format!(
         "16,current:{}:bold,current_bg:{},matched:{},current_match:{}:bold:underline,border:{},prompt:{},header:{},selected:{}",
         Black as u8,
@@ -170,7 +197,7 @@ async fn print_host<S: AsRef<str>>(
         let value_not_found = ["???".to_owned()];
         let values = host_cfg.get(field).unwrap_or(&value_not_found);
 
-        #[allow(unstable_name_collisions)]
+        #[expect(unstable_name_collisions)]
         for v in values.iter().map(String::as_str).intersperse(",") {
             () = print!("{v}");
         }
@@ -186,7 +213,7 @@ async fn print_skim_output(
     custom_config: Option<&Path>,
 ) -> Result<()> {
     if output.is_abort {
-        exit(1);
+        bail!("Program aborted");
     }
 
     if output.selected_items.is_empty() {

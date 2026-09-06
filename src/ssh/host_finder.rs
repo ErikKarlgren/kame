@@ -3,7 +3,7 @@
 
 use std::{collections::HashSet, path::Path};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tokio::{
     fs::File,
     io::{AsyncBufRead, AsyncBufReadExt, BufReader},
@@ -12,7 +12,9 @@ use tokio::{
 /// Parse hosts from a single file
 pub async fn parse_hosts(path: &Path) -> Result<Vec<String>> {
     let mut hosts: HashSet<String> = HashSet::new();
-    let file = File::open(&path).await?;
+    let file = File::open(&path)
+        .await
+        .context(format!("Failed to open '{}'", path.display()))?;
     extract_hosts(&mut hosts, BufReader::new(file)).await?;
     let mut hosts: Vec<_> = hosts.into_iter().collect();
     hosts.sort();
@@ -42,6 +44,10 @@ async fn extract_hosts(
                 if !host.contains('*') && !host.contains('?') {
                     let host = if !equal_sign_seen && host.starts_with('=') {
                         equal_sign_seen = true;
+                        #[expect(
+                            clippy::string_slice,
+                            reason = "we're skipping a '=', which is an ascii char"
+                        )]
                         &host[1..]
                     } else {
                         host

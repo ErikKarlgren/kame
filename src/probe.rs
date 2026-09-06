@@ -7,6 +7,7 @@ use crate::{
     cli::ProbeArgs,
     ssh::{host_config::HostConfig, host_properties::prop_to_pretty_alias},
 };
+use anyhow::{Result, bail};
 use colored::{Colorize, control};
 use itertools::Itertools;
 
@@ -27,18 +28,18 @@ pub async fn probe(
     }: ProbeArgs,
     // 99% of the time <3 elements, so no need for a HashSet
     props_to_highlight: Option<&[String]>,
-) -> String {
+) -> Result<String> {
     if verbose {
-        todo!("verbose not implemented")
+        bail!("--verbose not implemented")
     }
     if plain {
-        todo!("plain not implemented")
+        bail!("--plain not implemented")
     }
     if json {
-        todo!("json not implemented")
+        bail!("--json not implemented")
     }
     if no_probes {
-        todo!("no_probes not implemented")
+        bail!("--no-probes not implemented")
     }
 
     if !plain {
@@ -76,7 +77,7 @@ pub async fn probe(
             );
         }
     }
-    output
+    Ok(output)
 }
 
 fn render_host(host: &str, plain: bool) -> String {
@@ -113,7 +114,7 @@ fn render_field(
     let values = config.get(property).unwrap_or(&value_not_found);
     let mut plain_output = String::new();
 
-    #[allow(unstable_name_collisions)]
+    #[expect(unstable_name_collisions)]
     for v in values.iter().map(String::as_str).intersperse(",") {
         _ = write!(&mut plain_output, "{v}");
     }
