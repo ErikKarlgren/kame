@@ -114,7 +114,7 @@ fn render_field(
     let values = config.get(property).unwrap_or(&value_not_found);
     let mut plain_output = String::new();
 
-    #[allow(unstable_name_collisions)]
+    #[expect(unstable_name_collisions)]
     for v in values.iter().map(String::as_str).intersperse(",") {
         _ = write!(&mut plain_output, "{v}");
     }

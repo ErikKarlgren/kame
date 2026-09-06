@@ -55,8 +55,6 @@ impl HostConfig {
             let stderr = String::from_utf8_lossy(&output.stderr);
             match output.status.code() {
                 Some(code) => bail!("ssh failed with exit code {code}: {stderr}"),
-
-                #[allow(clippy::option_if_let_else)]
                 None => match output.status.signal() {
                     Some(signal) => bail!("ssh interrupted by signal {signal}: {stderr}"),
                     None => bail!("ssh aborted execution for an unknown reason: {stderr}"),
@@ -116,7 +114,7 @@ fn parse_stdout(stdout: &str) -> Result<HashMap<String, Vec<String>>> {
 }
 
 fn unexpected_format_error(num: usize, line: &str) -> anyhow::Error {
-    #[allow(clippy::option_if_let_else, reason = "easier to understand")]
+    #[expect(clippy::option_if_let_else, reason = "easier to understand")]
     let line_num = match num.checked_add(1) {
         Some(n) => n.to_string(),
         None => format!(">{}", usize::MAX),

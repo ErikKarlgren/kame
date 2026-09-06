@@ -119,7 +119,7 @@ fn build_skim_options(
     multi: bool,
 ) -> Result<SkimOptions, SkimOptionsBuilderError> {
     use AnsiColor::{Black, Blue, BrightBlack, Green, Yellow};
-    #[allow(
+    #[expect(
         clippy::as_conversions,
         reason = "casting enum with repr(u8) to u8 is lossless and safe"
     )]
@@ -176,7 +176,7 @@ async fn print_host<S: AsRef<str>>(
         let value_not_found = ["???".to_owned()];
         let values = host_cfg.get(field).unwrap_or(&value_not_found);
 
-        #[allow(unstable_name_collisions)]
+        #[expect(unstable_name_collisions)]
         for v in values.iter().map(String::as_str).intersperse(",") {
             () = print!("{v}");
         }
