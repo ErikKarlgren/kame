@@ -30,16 +30,6 @@ Pending tasks to implement. I will be updating this as I need to.
       updating either way
 
 ## Error handling and exit codes
-- [ ] Replace the `todo!()`s on documented flags with a clean error
-    - `probe -v/-p/--json/-N` (`probe.rs:18-29`) and `pick --json/--preview-cmd`
-      (`pick.rs:70-75`) panic with a backtrace note and exit 101
-    - All of them are listed in `--help`, so users will find them
-    - Either hide them (`.hide(true)`) until implemented, or return
-      `anyhow!("--json is not implemented yet")`
-- [ ] Fail gracefully when `pick` has no tty
-    - `pick.rs:92` unwraps `Skim::run_items`; `kame pick < /dev/null` panics
-      with `No such device or address (os error 6)` and exits 101
-    - Want a one-line "kame pick needs an interactive terminal" on stderr
 - [ ] Report `probe` failures on stderr with a non-zero exit
     - `probe.rs:46-51` writes `Error: Could not parse information for host: …`
       into the returned `String`, which `main.rs:32` prints to stdout
@@ -52,12 +42,6 @@ Pending tasks to implement. I will be updating this as I need to.
       the caller's variable
     - An unknown field should be a stderr error with a non-zero exit; a
       legitimately unset field should probably print nothing
-- [ ] Add path context to IO errors
-    - `File::open(&path).await?` (`host_finder.rs:15`) drops the path:
-      `kame pick -F /tmp/nope.conf` prints only
-      `Error: No such file or directory (os error 2)`
-    - The common case is a first-time user with no `~/.ssh/config` at all, who
-      gets the same bare message — probably deserves its own wording
 - [ ] Do not abort multi-select halfway through
     - `pick.rs:150-153` uses `?` inside the loop, so if host 3 of 5 fails
       `ssh -G`, hosts 1-2 are already on stdout and the process exits non-zero
