@@ -40,18 +40,20 @@ impl SkimItem for SshHost {
     fn preview(&self, _ctx: PreviewContext<'_>) -> ItemPreview {
         let text = tokio::task::block_in_place(|| {
             Handle::current().block_on(async {
-                probe(
-                    ProbeArgs {
-                        host: self.hostname.clone(),
-                        verbose: false,
-                        plain: false,
-                        json: false,
-                        no_probes: false,
-                        config: self.ssh_config.clone(),
-                    },
-                    Some(&self.props_to_highlight),
-                )
-                .await
+                let probe_args = ProbeArgs {
+                    host: self.hostname.clone(),
+                    verbose: false,
+                    plain: false,
+                    json: false,
+                    no_probes: false,
+                    config: self.ssh_config.clone(),
+                };
+
+                probe(probe_args, Some(&self.props_to_highlight))
+                    .await
+                    .unwrap_or_else(|err| {
+                        format!("Error: Could not preview '{}': {err}", self.hostname)
+                    })
             })
         });
         ItemPreview::Text(text)
