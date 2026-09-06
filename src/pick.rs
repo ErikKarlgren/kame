@@ -104,7 +104,28 @@ pub async fn pick(
             hostname,
             ssh_config: config.clone(),
             props_to_highlight: fields.clone(),
-        });
+        })
+        .collect_vec();
+
+    if hosts.is_empty() {
+        bail!(
+            "No SSH aliases were found in '{}'. You need entries with the following format:
+
+    Host alias
+
+For example:
+
+    Host server1
+    User admin
+    Hostname server1.mycloud.net
+
+This will appear as `server1` inside `kame pick`. The fields User and Hostname mean you can replace `ssh admin@server1.mycloud.net` with `ssh server1`, or even better, as `ssh $(kame pick)`
+
+For more advanced options, please search online how to further configure SSH
+",
+            path.display()
+        );
+    }
 
     let options = build_skim_options(query, multi)
         .context("Could not build the UI (is an interactive terminal available?)")?;
