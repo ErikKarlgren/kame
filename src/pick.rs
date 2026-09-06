@@ -49,11 +49,11 @@ impl SkimItem for SshHost {
                     config: self.ssh_config.clone(),
                 };
 
-                probe(probe_args, Some(&self.props_to_highlight))
-                    .await
-                    .unwrap_or_else(|err| {
-                        format!("Error: Could not preview '{}': {err}", self.hostname)
-                    })
+                let mut text: Vec<u8> = Vec::new();
+                match probe(&mut text, probe_args, Some(&self.props_to_highlight)).await {
+                    Ok(()) => String::from_utf8_lossy(&text).into_owned(),
+                    Err(err) => format!("Error: Could not preview '{}': {err}", self.hostname),
+                }
             })
         });
         ItemPreview::Text(text)

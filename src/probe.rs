@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt::Write, time::Duration};
+use std::{io::Write, time::Duration};
 
 use crate::{
     cli::ProbeArgs,
@@ -17,7 +17,8 @@ enum LabelIntensity {
     Bright,
 }
 
-pub async fn probe(
+pub async fn probe<W: Write>(
+    output: &mut W,
     ProbeArgs {
         host,
         verbose,
@@ -28,7 +29,7 @@ pub async fn probe(
     }: ProbeArgs,
     // 99% of the time <3 elements, so no need for a HashSet
     props_to_highlight: Option<&[String]>,
-) -> Result<String> {
+) -> Result<()> {
     if verbose {
         bail!("--verbose not implemented")
     }
@@ -46,7 +47,7 @@ pub async fn probe(
         control::set_override(true); // force colors
     }
 
-    let mut output = format!("{}\n", render_host(&host, plain));
+    render_host(output, &host, plain)?;
 
     match HostConfig::from_host(&host, config.as_deref()).await {
         Ok(config) => {
@@ -67,52 +68,51 @@ pub async fn probe(
                 } else {
                     LabelIntensity::Normal
                 };
-                render_field(&mut output, &config, property, intensity);
+                render_field(output, &config, property, intensity)?;
             }
 
             let prober = SshProber::new(Duration::from_secs(10));
             let hostname = config.hostname()?;
             let port = config.port()?;
             let result = prober.connect(hostname, port).await?;
-            render_latency(&mut output, "Latency", result.latency);
+            render_latency(output, "Latency", result.latency)?;
         }
         Err(err) => {
-            _ = writeln!(
-                &mut output,
-                "Error: Could not parse information for host: {err}"
-            );
+            writeln!(output, "Error: Could not parse information for host: {err}")?;
         }
     }
-    Ok(output)
+    Ok(())
 }
 
-fn render_host(host: &str, plain: bool) -> String {
-    let mut line = format!("📡 {host}");
+fn render_host<W: Write>(output: &mut W, host: &str, plain: bool) -> Result<()> {
+    let mut host = host.to_string();
     if !plain {
-        line = line.green().bold().to_string();
+        host = host.green().bold().to_string();
     }
-    line
+    writeln!(output, "📡 {host}")?;
+    Ok(())
 }
 
-fn render_field(
-    output: &mut String,
+fn render_field<W: Write>(
+    output: &mut W,
     config: &HostConfig,
     property: &str,
     intensity: LabelIntensity,
-) {
+) -> Result<()> {
     let mut label = String::new();
-    _ = write!(
+    use std::fmt::Write;
+    write!(
         &mut label,
         "{}:",
         prop_to_pretty_alias(property).unwrap_or(property)
-    );
+    )?;
 
     match intensity {
         LabelIntensity::Normal => {
-            _ = write!(output, "{} ", label.blue());
+            write!(output, "{} ", label.blue())?;
         }
         LabelIntensity::Bright => {
-            _ = write!(output, "{} ", label.bright_cyan().bold());
+            write!(output, "{} ", label.bright_cyan().bold())?;
         }
     }
 
@@ -122,19 +122,20 @@ fn render_field(
 
     #[expect(unstable_name_collisions)]
     for v in values.iter().map(String::as_str).intersperse(",") {
-        _ = write!(&mut plain_output, "{v}");
+        write!(&mut plain_output, "{v}")?;
     }
     match intensity {
         LabelIntensity::Normal => {
-            _ = writeln!(output, "{plain_output}");
+            writeln!(output, "{plain_output}")?;
         }
         LabelIntensity::Bright => {
-            _ = writeln!(output, "{}", plain_output.bold());
+            writeln!(output, "{}", plain_output.bold())?;
         }
     }
+    Ok(())
 }
 
-fn render_latency(output: &mut String, property: &str, latency: Duration) {
+fn render_latency<W: Write>(output: &mut W, property: &str, latency: Duration) -> Result<()> {
     const GOOD_THRESHOLD: u128 = 500;
     const WARN_THRESHOLD: u128 = 5000;
 
@@ -149,5 +150,6 @@ fn render_latency(output: &mut String, property: &str, latency: Duration) {
     };
 
     let property = format!("{property}:");
-    _ = writeln!(output, "{} {lat_str} ", property.blue());
+    writeln!(output, "{} {lat_str} ", property.blue())?;
+    Ok(())
 }
