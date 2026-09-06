@@ -93,10 +93,6 @@ Pending tasks to implement. I will be updating this as I need to.
       an `ssh -G` fork on every cursor move
     - A config with a slow `Match exec` freezes the whole TUI with no way out
     - A `Mutex<HashMap>` keyed by alias is a cheap win
-- [ ] Stop the preview truncating long values
-    - `PREVIEW_LAYOUT` is `Size::Fixed(40)` with `wrap: false`, so
-      `Hostname some.long.name.example.com` is silently cut
-    - Consider `Percentage`, or enable wrapping
 - [ ] Make `-L` conflict with `-m`
     - `-m` is meaningless in literal mode but currently accepted
 - [ ] Remove the unreachable "No host was given" branch
