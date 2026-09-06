@@ -42,6 +42,10 @@ async fn extract_hosts(
                 if !host.contains('*') && !host.contains('?') {
                     let host = if !equal_sign_seen && host.starts_with('=') {
                         equal_sign_seen = true;
+                        #[expect(
+                            clippy::string_slice,
+                            reason = "we're skipping a '=', which is an ascii char"
+                        )]
                         &host[1..]
                     } else {
                         host
