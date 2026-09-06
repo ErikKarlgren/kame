@@ -69,6 +69,7 @@ pub async fn probe(
                 };
                 render_field(&mut output, &config, property, intensity);
             }
+            render_latency(&mut output, "Latency", 120.0);
         }
         Err(err) => {
             _ = writeln!(
@@ -126,4 +127,21 @@ fn render_field(
             _ = writeln!(output, "{}", plain_output.bold());
         }
     }
+}
+
+fn render_latency(output: &mut String, property: &str, time_ms: f32) {
+    const GOOD_THRESHOLD: f32 = 500.0;
+    const WARN_THRESHOLD: f32 = 5000.0;
+
+    let value_str = format!("{time_ms:.2} ms");
+    let time_ms = if time_ms < GOOD_THRESHOLD {
+        value_str.green()
+    } else if time_ms < WARN_THRESHOLD {
+        value_str.yellow()
+    } else {
+        value_str.red()
+    };
+
+    let property = format!("{property}:");
+    _ = writeln!(output, "{} {time_ms} ", property.blue());
 }
