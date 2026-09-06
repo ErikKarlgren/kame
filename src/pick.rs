@@ -4,11 +4,10 @@
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
-    process::exit,
     sync::Arc,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::builder::styling::AnsiColor;
 use itertools::Itertools;
 use skim::{
@@ -81,18 +80,17 @@ pub async fn pick(
     }: PickArgs,
 ) -> Result<()> {
     if json {
-        todo!("--json not implemented yet");
+        bail!("--json not implemented yet");
     }
     if preview_cmd.is_some() {
-        todo!("--preview-cmd not implemented yet");
+        bail!("--preview-cmd not implemented yet");
     }
 
     if literal {
         if let Some(host) = query {
             return print_host(host, &fields, config.as_deref()).await;
         }
-        eprintln!("No host was given");
-        exit(1);
+        bail!("No host was given");
     }
 
     let fields = Arc::new(fields);
@@ -188,7 +186,7 @@ async fn print_skim_output(
     custom_config: Option<&Path>,
 ) -> Result<()> {
     if output.is_abort {
-        exit(1);
+        bail!("Program aborted");
     }
 
     if output.selected_items.is_empty() {
