@@ -117,6 +117,10 @@ fn build_skim_options(
     multi: bool,
 ) -> Result<SkimOptions, SkimOptionsBuilderError> {
     use AnsiColor::{Black, Blue, BrightBlack, Green, Yellow};
+    #[allow(
+        clippy::as_conversions,
+        reason = "casting enum with repr(u8) to u8 is lossless and safe"
+    )]
     let skim_colors = format!(
         "16,current:{}:bold,current_bg:{},matched:{},current_match:{}:bold:underline,border:{},prompt:{},header:{},selected:{}",
         Black as u8,
