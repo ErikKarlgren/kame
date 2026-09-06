@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::fmt::Write;
+use std::{fmt::Write, time::Duration};
 
 use crate::{
     cli::ProbeArgs,
@@ -69,7 +69,12 @@ pub async fn probe(
                 };
                 render_field(&mut output, &config, property, intensity);
             }
-            render_latency(&mut output, "Latency", 120.0);
+
+            let prober = SshProber::new(Duration::from_secs(10));
+            let hostname = config.hostname()?;
+            let port = config.port()?;
+            let result = prober.connect(hostname, port).await?;
+            render_latency(&mut output, "Latency", result.latency);
         }
         Err(err) => {
             _ = writeln!(
@@ -129,19 +134,20 @@ fn render_field(
     }
 }
 
-fn render_latency(output: &mut String, property: &str, time_ms: f32) {
-    const GOOD_THRESHOLD: f32 = 500.0;
-    const WARN_THRESHOLD: f32 = 5000.0;
+fn render_latency(output: &mut String, property: &str, latency: Duration) {
+    const GOOD_THRESHOLD: u128 = 500;
+    const WARN_THRESHOLD: u128 = 5000;
 
-    let value_str = format!("{time_ms:.2} ms");
-    let time_ms = if time_ms < GOOD_THRESHOLD {
-        value_str.green()
-    } else if time_ms < WARN_THRESHOLD {
-        value_str.yellow()
+    let lat_ms = latency.as_millis();
+    let lat_str = format!("{lat_ms:.2} ms");
+    let lat_str = if lat_ms < GOOD_THRESHOLD {
+        lat_str.green()
+    } else if lat_ms < WARN_THRESHOLD {
+        lat_str.yellow()
     } else {
-        value_str.red()
+        lat_str.red()
     };
 
     let property = format!("{property}:");
-    _ = writeln!(output, "{} {time_ms} ", property.blue());
+    _ = writeln!(output, "{} {lat_str} ", property.blue());
 }
