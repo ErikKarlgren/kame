@@ -74,6 +74,27 @@ impl HostConfig {
     pub fn get(&self, key: &str) -> Option<&[String]> {
         self.var_map.get(key).map(Vec::as_slice)
     }
+
+    pub fn hostname(&self) -> Result<&str> {
+        self.get_single_value("hostname")
+    }
+
+    pub fn port(&self) -> Result<u32> {
+        let port = self.get_single_value("port")?;
+        let port = port.parse().context("Port not numerical")?;
+        Ok(port)
+    }
+
+    fn get_single_value(&self, key: &str) -> Result<&str> {
+        let value = self
+            .var_map
+            .get(key)
+            .ok_or_else(|| anyhow!("Property {key} not found"))?
+            .iter()
+            .next()
+            .ok_or_else(|| anyhow!("No {key} value found"))?;
+        Ok(value)
+    }
 }
 
 /// Build the command arguments for `ssh` to parse info about the given hostname.
