@@ -1,16 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erik Karlgren Domercq
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![warn(clippy::cargo)]
-#![deny(clippy::style)]
-#![deny(clippy::complexity)]
-#![deny(clippy::perf)]
-#![deny(clippy::nursery)]
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
-
 use anyhow::Result;
 
 use crate::{

@@ -17,3 +17,25 @@ terminal_size = { version = "0.4.4", default-features = false }
 tokio = { version = "1.53.1", default-features = false, features = ["fs", "io-util", "macros", "process", "rt-multi-thread"] }
 colored = "3.1.1"
 itertools = "0.14.0"
+
+# Originally copied from https://www.namtao.com/rust/, thanks to No Boilerplate
+# for sharing it!
+[lints.clippy]
+# UM, ACTUALLY
+pedantic = { level = "deny", priority = -1 }
+# DEVELOPING LINTS
+nursery = { level = "deny", priority = -1 }
+# DENY PANICS
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+arithmetic_side_effects = "deny"
+unreachable = "deny"
+unimplemented = "deny"
+unchecked_time_subtraction = "deny"
+todo = "deny"
+string_slice = "deny"
+panic_in_result_fn = "deny"
+panic = "deny"
+exit = "deny"
+as_conversions = "deny"
