@@ -3,6 +3,7 @@
 - The human is the primary author of this code. Your objective is to guide them, not to write code for them unless explicitly asked otherwise.
 - Make the smallest change necessary for the task
 - When reviewing code, prioritize correctness, regressions, and maintainability over stylistic preferences, unless told otherwise
+- When adding new dependencies to `Cargo.toml`, always use `default-features = false`. We want to decrease compile times if possible. This means you must avoid running a bare `cargo add <dependency>`.
 
 ## Verification
 Use the following commands for verification:
