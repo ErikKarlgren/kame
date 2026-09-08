@@ -3,6 +3,7 @@
 
 use std::{
     borrow::Cow,
+    io::{Write, stdout},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -88,9 +89,10 @@ pub async fn pick(
         bail!("--preview-cmd not implemented yet");
     }
 
+    let mut stdout = stdout().lock();
     if literal {
         if let Some(host) = query {
-            return print_host(host, &fields, config.as_deref()).await;
+            return print_host(&mut stdout, host, &fields, config.as_deref()).await;
         }
         bail!("No host was given");
     }
@@ -129,9 +131,9 @@ For more advanced options, please search online how to further configure SSH
 
     let options = build_skim_options(query, multi)
         .context("Could not build the UI (is an interactive terminal available?)")?;
-    let output = Skim::run_items(options, hosts)
+    let skim_output = Skim::run_items(options, hosts)
         .map_err(|err| anyhow!("Unexpected error while sending SSH aliases to UI: {err}"))?;
-    print_skim_output(&output, &fields, config.as_deref()).await?;
+    print_skim_output(&mut stdout, &skim_output, &fields, config.as_deref()).await?;
     Ok(())
 }
 
@@ -182,13 +184,14 @@ fn build_skim_options(
         .build()
 }
 
-async fn print_host<S: AsRef<str>>(
+async fn print_host<W: Write, S: AsRef<str>>(
+    output: &mut W,
     host: S,
     fields: &[String],
     custom_config: Option<&Path>,
 ) -> Result<()> {
     if fields.is_empty() {
-        println!("{}", host.as_ref());
+        writeln!(output, "{}", host.as_ref())?;
         return Ok(());
     }
 
@@ -199,30 +202,31 @@ async fn print_host<S: AsRef<str>>(
 
         #[expect(unstable_name_collisions)]
         for v in values.iter().map(String::as_str).intersperse(",") {
-            () = print!("{v}");
+            write!(output, "{v}")?;
         }
-        print!(" ");
+        write!(output, " ")?;
     }
-    println!();
+    writeln!(output);
     Ok(())
 }
 
-async fn print_skim_output(
-    output: &SkimOutput,
+async fn print_skim_output<W: Write>(
+    output: &mut W,
+    skim_output: &SkimOutput,
     fields: &[String],
     custom_config: Option<&Path>,
 ) -> Result<()> {
-    if output.is_abort {
+    if skim_output.is_abort {
         bail!("Program aborted");
     }
 
-    if output.selected_items.is_empty() {
-        return print_host(&output.query, fields, custom_config).await;
+    if skim_output.selected_items.is_empty() {
+        return print_host(output, &skim_output.query, fields, custom_config).await;
     }
 
-    for host in &output.selected_items {
+    for host in &skim_output.selected_items {
         let host = host.text();
-        print_host(host, fields, custom_config).await?;
+        print_host(output, host, fields, custom_config).await?;
     }
     Ok(())
 }
